@@ -1,0 +1,73 @@
+@import "tailwindcss";
+@source "../**/*.{ts,tsx,js,jsx}";
+
+@variant dark (&:is(.dark *));
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+.dark {
+  --background: #0f172a;
+  --foreground: #f1f5f9;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+select,
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="search"],
+input[type="date"],
+textarea {
+  color: #111827;
+  background-color: #ffffff;
+}
+
+.dark select,
+.dark input[type="text"],
+.dark input[type="email"],
+.dark input[type="password"],
+.dark input[type="number"],
+.dark input[type="search"],
+.dark input[type="date"],
+.dark textarea {
+  color: #f1f5f9;
+  background-color: #1e293b;
+  border-color: #475569;
+}
+
+select option {
+  color: #111827;
+  background-color: #ffffff;
+}
+
+.dark select option {
+  color: #f1f5f9;
+  background-color: #1e293b;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #6b7280;
+  opacity: 1;
+}
+
+select:disabled,
+input:disabled,
+textarea:disabled {
+  color: #6b7280;
+  background-color: #f9fafb;
+}
