@@ -1,0 +1,88 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Main schedule table ────────────────────────────────────────────────────
+// NOTE: The Id column must be added via prisma/migration.sql before first use.
+model LaborSchedule {
+  id                 Int       @id @default(autoincrement()) @map("Id")
+  usrSystemCompanyId String    @map("UsrSystemCompanyID") @db.NVarChar(100)
+  branchId           Int?      @map("BranchID")
+  hotelName          String?   @map("HotelName") @db.NVarChar(200)
+  employeeCode       String    @map("EmployeeCode") @db.NVarChar(50)
+  firstName          String?   @map("FirstName") @db.NVarChar(100)
+  lastName           String?   @map("LastName") @db.NVarChar(100)
+  scheduleDate       DateTime  @map("ScheduleDate") @db.Date
+  clockIn            String?   @map("ClockIn") @db.NVarChar(20)
+  clockOut           String?   @map("ClockOut") @db.NVarChar(20)
+  hours              Decimal?  @map("Hours") @db.Decimal(10, 2)
+  tenant             String?   @map("Tenant") @db.NVarChar(200)
+  deptName           String?   @map("DeptName") @db.NVarChar(200)
+  multiDept          Boolean?  @default(false) @map("MultiDept")
+  positionName       String?   @map("PositionName") @db.NVarChar(200)
+  locked             Boolean?  @default(false) @map("Locked")
+
+  @@map("HIALaborSchedules")
+}
+
+// ─── User accounts ──────────────────────────────────────────────────────────
+model User {
+  userId             Int       @id @default(autoincrement()) @map("UserID")
+  firstName          String    @map("FirstName") @db.NVarChar(100)
+  lastName           String    @map("LastName") @db.NVarChar(100)
+  email              String    @unique @map("Email") @db.NVarChar(200)
+  role               String    @map("Role") @db.NVarChar(50)
+  passwordHash       String?   @map("PasswordHash") @db.NVarChar(Max)
+  mustChangePassword Boolean   @default(true) @map("MustChangePassword")
+  isActive           Boolean   @default(true) @map("IsActive")
+  updatedAt          DateTime? @map("UpdatedAt")
+
+  tenants     UserTenant[]
+  hotels      UserHotel[]
+  departments UserDept[]
+
+  @@map("HIALaborSchedulesUsers")
+}
+
+// ─── User → Tenant assignments ──────────────────────────────────────────────
+model UserTenant {
+  id     Int    @id @default(autoincrement()) @map("UserTenantID")
+  userId Int    @map("UserID")
+  tenant String @map("Tenant") @db.NVarChar(200)
+
+  user User @relation(fields: [userId], references: [userId], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("HIALaborSchedulesUserTenants")
+}
+
+// ─── User → Hotel assignments ───────────────────────────────────────────────
+model UserHotel {
+  id                 Int     @id @default(autoincrement()) @map("UserHotelID")
+  userId             Int     @map("UserID")
+  tenant             String  @map("Tenant") @db.NVarChar(200)
+  hotelName          String  @map("HotelName") @db.NVarChar(200)
+  usrSystemCompanyId String? @map("UsrSystemCompanyID") @db.NVarChar(100)
+  branchId           Int?    @map("BranchID")
+
+  user User @relation(fields: [userId], references: [userId], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("HIALaborSchedulesUserHotels")
+}
+
+// ─── User → Department assignments ──────────────────────────────────────────
+model UserDept {
+  id        Int    @id @default(autoincrement()) @map("UserDeptID")
+  userId    Int    @map("UserID")
+  tenant    String @map("Tenant") @db.NVarChar(200)
+  hotelName String @map("HotelName") @db.NVarChar(200)
+  deptName  String @map("DeptName") @db.NVarChar(200)
+
+  user User @relation(fields: [userId], references: [userId], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("HIALaborSchedulesUserDepts")
+}
