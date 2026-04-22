@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { format, addDays, subDays } from 'date-fns';
-import { calcHours } from '@/lib/schedule-utils';
+import { calcHours } from '@/lib/domain/rules';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 

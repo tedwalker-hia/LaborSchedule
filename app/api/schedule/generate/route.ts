@@ -1,16 +1,11 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { calcHours, generateClockTimes } from '@/lib/schedule-utils';
-import type { EmployeeHistory } from '@/lib/payroll-history';
+import { generateClockTimes } from '@/lib/schedule-utils';
+import type { EmployeeHistory } from '@/lib/domain/types';
 import { getEmployeeHistoryByPosition, getEmployeeHistory } from '@/lib/payroll-history';
-
-/**
- * Convert JS getDay() (0=Sun) to Monday-based (0=Mon..6=Sun).
- */
-function toMondayBased(jsDay: number): number {
-  return (jsDay + 6) % 7;
-}
+import { toMondayBased } from '@/lib/domain/payroll';
+import { calcHours, shouldScheduleDow } from '@/lib/domain/rules';
 
 /**
  * Generate an array of Date objects for each day in [startDate, endDate].
@@ -120,8 +115,8 @@ export async function POST(request: NextRequest) {
             // Proportional hours for this position
             const proportion =
               totalWeeklyHours > 0 ? posHistory.avgWeeklyHours / totalWeeklyHours : 0;
-            const avgHours = posHistory.avgByDow[dow];
-            if (!avgHours || avgHours <= 0) continue;
+            const avgHours = posHistory.avgByDow[dow] ?? 0;
+            if (!shouldScheduleDow(avgHours)) continue;
 
             const times = generateClockTimes(avgHours);
             if (!times) continue;
@@ -155,8 +150,8 @@ export async function POST(request: NextRequest) {
           // Check if DOW is a work day
           if (!history.workDays.includes(dow)) continue;
 
-          const avgHours = history.avgByDow[dow];
-          if (!avgHours || avgHours <= 0) continue;
+          const avgHours = history.avgByDow[dow] ?? 0;
+          if (!shouldScheduleDow(avgHours)) continue;
 
           const times = generateClockTimes(avgHours);
           if (!times) continue;

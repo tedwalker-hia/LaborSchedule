@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { calcHours } from '@/lib/schedule-utils';
+import { calcHours } from '@/lib/domain/rules';
 
 export async function POST(request: NextRequest) {
   try {

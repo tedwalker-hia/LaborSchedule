@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import Modal from '@/components/ui/Modal';
 import type { FilterState } from '@/components/schedule/useScheduleState';
-import { TIME_OPTIONS, calcHours } from '@/lib/schedule-utils';
+import { TIME_OPTIONS } from '@/lib/schedule-utils';
+import { calcHours } from '@/lib/domain/rules';
 
 interface Employee {
   code: string;
