@@ -124,8 +124,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const nativeFetch = window.fetch.bind(window);
 
-    window.fetch = async (...args: Parameters<typeof fetch>) => {
-      const response = await nativeFetch(...args);
+    window.fetch = async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const method = (init?.method ?? 'GET').toUpperCase();
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+        const csrfToken = getCookie('csrf_token');
+        if (csrfToken) {
+          const headers = new Headers(init?.headers as HeadersInit | undefined);
+          if (!headers.has('x-csrf-token')) {
+            headers.set('x-csrf-token', csrfToken);
+            init = { ...init, headers };
+          }
+        }
+      }
+
+      const response = await nativeFetch(input, init);
       if (response.status === 401 && !loggingOut.current) {
         loggingOut.current = true;
         // Use native fetch to avoid recursive interception.

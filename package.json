@@ -24,7 +24,9 @@
     "spike:frozen-panes": "node --experimental-strip-types tests/spikes/excel-frozen-panes.ts",
     "spike:named-ranges": "node --experimental-strip-types tests/spikes/excel-named-ranges.ts",
     "spike:conditional-formatting": "node --experimental-strip-types tests/spikes/excel-conditional-formatting.ts",
-    "check:excel-verdict": "node --experimental-strip-types scripts/check-excel-verdict.ts"
+    "check:excel-verdict": "node --experimental-strip-types scripts/check-excel-verdict.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",
@@ -47,6 +49,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

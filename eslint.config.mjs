@@ -15,6 +15,8 @@ export default tseslint.config(
       'next-env.d.ts',
       'tests/spikes/**',
       'scripts/check-excel-verdict.ts',
+      'e2e/**',
+      'playwright.config.ts',
     ],
   },
   ...tseslint.configs.recommended,

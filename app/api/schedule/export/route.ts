@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { exportScheduleToExcel } from '@/lib/excel-export';
+import { exportScheduleToExcel } from '@/lib/excel/writer';
 import { getCurrentUser } from '@/lib/auth/current-user';
 import { getUserPermissions } from '@/lib/auth/rbac';
 import logger from '@/lib/logger';
