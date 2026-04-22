@@ -68,15 +68,16 @@ model User {
 // ─── Audit log for schedule changes (Phase 8 writes) ───────────────────────
 model LaborScheduleAudit {
   auditId         Int      @id @default(autoincrement()) @map("AuditID")
-  scheduleId      Int      @map("ScheduleID")
+  scheduleId      Int?     @map("ScheduleID")
   changedByUserId Int?     @map("ChangedByUserID")
   changedAt       DateTime @default(now()) @map("ChangedAt") @db.DateTime2
   action          String   @map("Action") @db.NVarChar(20)
   oldJson         String?  @map("OldJson") @db.NVarChar(Max)
   newJson         String?  @map("NewJson") @db.NVarChar(Max)
 
-  schedule  LaborSchedule @relation(fields: [scheduleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  changedBy User?         @relation(fields: [changedByUserId], references: [userId], onDelete: SetNull, onUpdate: NoAction)
+  // SetNull: audit rows survive when schedule is deleted (OldJson preserves the data)
+  schedule  LaborSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  changedBy User?          @relation(fields: [changedByUserId], references: [userId], onDelete: SetNull, onUpdate: NoAction)
 
   @@map("HIALaborScheduleAudit")
 }

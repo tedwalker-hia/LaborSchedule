@@ -5,6 +5,7 @@ import type { EmployeeHistory } from '@/lib/domain/types';
 import { PayrollRepo, makePayrollRepo } from '../repositories/payroll-repo';
 import { toMondayBased } from '@/lib/domain/payroll';
 import { calcHours, shouldScheduleDow } from '@/lib/domain/rules';
+import { AuditService, AuditCtx, makeAuditService } from './audit-service';
 
 export interface GenerateParams {
   usrSystemCompanyId: string;
@@ -66,6 +67,7 @@ export class GenerationService {
   constructor(
     private readonly payrollRepo: PayrollRepo,
     private readonly db: PrismaClient = prisma,
+    private readonly auditService: AuditService = makeAuditService(),
   ) {}
 
   /** Builds one create-data record per qualifying position for a single employee+date. */
@@ -104,7 +106,7 @@ export class GenerationService {
     return records;
   }
 
-  async generate(params: GenerateParams): Promise<GenerateResult> {
+  async generate(params: GenerateParams, ctx: AuditCtx): Promise<GenerateResult> {
     const {
       usrSystemCompanyId,
       hotel,
@@ -247,6 +249,20 @@ export class GenerationService {
       }
     }
 
+    await this.auditService.record({
+      scheduleId: null,
+      changedByUserId: ctx.userId,
+      action: 'schedule.generate',
+      oldJson: null,
+      newJson: JSON.stringify({
+        employeeCount: employeeCodes.length,
+        startDate: params.startDate,
+        endDate: params.endDate,
+        inserted,
+        skipped,
+      }),
+    });
+
     return { inserted, skipped, skippedEmployees };
   }
 }
@@ -254,6 +270,7 @@ export class GenerationService {
 export function makeGenerationService(
   payrollRepo: PayrollRepo = makePayrollRepo(),
   db: PrismaClient = prisma,
+  auditService: AuditService = makeAuditService(),
 ): GenerationService {
-  return new GenerationService(payrollRepo, db);
+  return new GenerationService(payrollRepo, db, auditService);
 }

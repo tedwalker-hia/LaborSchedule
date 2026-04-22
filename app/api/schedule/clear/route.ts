@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const svc = makeScheduleService();
-    const result = await svc.clear(parsed.data);
+    const result = await svc.clear(parsed.data, { userId: user.userId, source: 'api' });
     return NextResponse.json(result);
   } catch (error) {
     return mapErrorResponse(error, 'Schedule clear error');

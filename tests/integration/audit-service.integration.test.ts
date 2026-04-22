@@ -1,9 +1,9 @@
 /**
  * Integration tests for AuditService + AuditRepo.
  *
- * AuditService.record() is a Phase 8 no-op stub — tested here to confirm it
- * resolves safely. AuditRepo.insert() is tested directly because it owns the
- * real DB write that Phase 8 will route through the service.
+ * AuditService.record() now writes real rows — these tests verify the full
+ * repo insert path and correct error propagation. The mutation-level audit
+ * tests (schedule.save, schedule.add, etc.) live in audit.integration.test.ts.
  *
  * Isolation: all LaborSchedule rows use usrSystemCompanyId = 'INTTEST_AUD'
  * so they cannot collide with fixture data or other suites.
@@ -33,34 +33,61 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-// ─── AuditService.record (no-op stub) ────────────────────────────────────────
+// ─── AuditService.record ─────────────────────────────────────────────────────
 
 describe('AuditService.record', () => {
-  it('resolves without error (no-op stub)', async () => {
-    await expect(
-      svc.record({
-        scheduleId: 1,
-        changedByUserId: null,
-        action: 'UPDATE',
-        oldJson: null,
-        newJson: null,
-      }),
-    ).resolves.toBeUndefined();
-  });
-
-  it('does not write any row to the DB', async () => {
-    const before = await prisma.laborScheduleAudit.count();
-
-    await svc.record({
-      scheduleId: 1,
-      changedByUserId: null,
-      action: 'UPDATE',
-      oldJson: null,
-      newJson: null,
+  it('writes an audit row to the DB', async () => {
+    const schedule = await prisma.laborSchedule.create({
+      data: {
+        usrSystemCompanyId: COMPANY,
+        employeeCode: 'EAUD00',
+        scheduleDate: new Date('2025-06-01T00:00:00Z'),
+      },
     });
 
+    const before = await prisma.laborScheduleAudit.count();
+    await svc.record({
+      scheduleId: schedule.id,
+      changedByUserId: null,
+      action: 'schedule.save',
+      oldJson: null,
+      newJson: JSON.stringify({ clockIn: '8:00 AM' }),
+    });
     const after = await prisma.laborScheduleAudit.count();
-    expect(after).toBe(before);
+
+    expect(after).toBe(before + 1);
+  });
+
+  it('writes with a transaction client when tx is provided', async () => {
+    const schedule = await prisma.laborSchedule.create({
+      data: {
+        usrSystemCompanyId: COMPANY,
+        employeeCode: 'EAUD00B',
+        scheduleDate: new Date('2025-06-02T00:00:00Z'),
+      },
+    });
+
+    let writtenId: number | undefined;
+    await (prisma as any).$transaction(async (tx: any) => {
+      await svc.record(
+        {
+          scheduleId: schedule.id,
+          changedByUserId: null,
+          action: 'schedule.add',
+          oldJson: null,
+          newJson: '{}',
+        },
+        tx,
+      );
+      // Verify row is visible inside the transaction
+      const row = await tx.laborScheduleAudit.findFirst({
+        where: { scheduleId: schedule.id },
+        orderBy: { auditId: 'desc' },
+      });
+      writtenId = row?.auditId;
+    });
+
+    expect(writtenId).toBeGreaterThan(0);
   });
 });
 
@@ -79,14 +106,14 @@ describe('AuditRepo.insert', () => {
     const audit = await repo.insert({
       scheduleId: schedule.id,
       changedByUserId: null,
-      action: 'CREATE',
+      action: 'schedule.save',
       oldJson: null,
       newJson: JSON.stringify({ clockIn: '8:00 AM' }),
     });
 
     expect(audit.auditId).toBeGreaterThan(0);
     expect(audit.scheduleId).toBe(schedule.id);
-    expect(audit.action).toBe('CREATE');
+    expect(audit.action).toBe('schedule.save');
 
     const found = await prisma.laborScheduleAudit.findUnique({
       where: { auditId: audit.auditId },
@@ -100,10 +127,26 @@ describe('AuditRepo.insert', () => {
       repo.insert({
         scheduleId: 999_999_999,
         changedByUserId: null,
-        action: 'DELETE',
+        action: 'schedule.delete',
         oldJson: null,
         newJson: null,
       }),
     ).rejects.toThrow();
+  });
+
+  it('allows null scheduleId (for delete-audited rows after cascade)', async () => {
+    const audit = await repo.insert({
+      scheduleId: null,
+      changedByUserId: null,
+      action: 'schedule.delete',
+      oldJson: JSON.stringify({ employeeCode: 'GONE' }),
+      newJson: null,
+    });
+
+    expect(audit.auditId).toBeGreaterThan(0);
+    expect(audit.scheduleId).toBeNull();
+
+    // Clean up this orphan row directly
+    await prisma.laborScheduleAudit.delete({ where: { auditId: audit.auditId } });
   });
 });

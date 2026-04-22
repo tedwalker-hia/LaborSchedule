@@ -17,10 +17,13 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PrismaClient } from '@prisma/client';
 import { GenerationService } from '@/lib/services/generation-service';
 import type { EmployeeHistory } from '@/lib/domain/types';
+import type { AuditCtx } from '@/lib/services/audit-service';
 
 const COMPANY = 'INTTEST_GEN';
 // Monday 6 Jan 2025
 const MONDAY = '2025-01-06';
+const CTX: AuditCtx = { userId: 1, source: 'api' };
+const stubAuditService = { record: async () => {} } as any;
 
 /** Minimal work-pattern history that schedules every Monday for 8 h. */
 function mondayHistory(): EmployeeHistory {
@@ -50,7 +53,7 @@ function makeSvc(payrollMap: Map<string, EmployeeHistory | null>): GenerationSer
     },
   } as any;
 
-  return new GenerationService(stubPayrollRepo, prisma);
+  return new GenerationService(stubPayrollRepo, prisma, stubAuditService);
 }
 
 beforeAll(() => {
@@ -68,12 +71,15 @@ describe('GenerationService.generate — happy path', () => {
   it('inserts schedule rows for each qualifying day in the range', async () => {
     const svc = makeSvc(new Map([['EGN01', mondayHistory()]]));
 
-    const result = await svc.generate({
-      usrSystemCompanyId: COMPANY,
-      employeeCodes: ['EGN01'],
-      startDate: MONDAY,
-      endDate: MONDAY,
-    });
+    const result = await svc.generate(
+      {
+        usrSystemCompanyId: COMPANY,
+        employeeCodes: ['EGN01'],
+        startDate: MONDAY,
+        endDate: MONDAY,
+      },
+      CTX,
+    );
 
     expect(result.inserted).toBe(1);
     expect(result.skipped).toBe(0);
@@ -90,12 +96,15 @@ describe('GenerationService.generate — happy path', () => {
   it('skips employees with no payroll history', async () => {
     const svc = makeSvc(new Map([['EGN02', null]]));
 
-    const result = await svc.generate({
-      usrSystemCompanyId: COMPANY,
-      employeeCodes: ['EGN02'],
-      startDate: MONDAY,
-      endDate: MONDAY,
-    });
+    const result = await svc.generate(
+      {
+        usrSystemCompanyId: COMPANY,
+        employeeCodes: ['EGN02'],
+        startDate: MONDAY,
+        endDate: MONDAY,
+      },
+      CTX,
+    );
 
     expect(result.inserted).toBe(0);
     expect(result.skippedEmployees).toContain('EGN02');
@@ -110,12 +119,15 @@ describe('GenerationService.generate — happy path', () => {
     // Tuesday 7 Jan 2025; stub only has workDays: [0] (Monday)
     const svc = makeSvc(new Map([['EGN03', mondayHistory()]]));
 
-    const result = await svc.generate({
-      usrSystemCompanyId: COMPANY,
-      employeeCodes: ['EGN03'],
-      startDate: '2025-01-07',
-      endDate: '2025-01-07',
-    });
+    const result = await svc.generate(
+      {
+        usrSystemCompanyId: COMPANY,
+        employeeCodes: ['EGN03'],
+        startDate: '2025-01-07',
+        endDate: '2025-01-07',
+      },
+      CTX,
+    );
 
     expect(result.inserted).toBe(0);
     expect(result.skipped).toBe(0);
@@ -142,13 +154,16 @@ describe('GenerationService.generate — locked records', () => {
 
     const svc = makeSvc(new Map([['EGN10', mondayHistory()]]));
 
-    const result = await svc.generate({
-      usrSystemCompanyId: COMPANY,
-      employeeCodes: ['EGN10'],
-      startDate: MONDAY,
-      endDate: MONDAY,
-      overwriteLocked: false,
-    });
+    const result = await svc.generate(
+      {
+        usrSystemCompanyId: COMPANY,
+        employeeCodes: ['EGN10'],
+        startDate: MONDAY,
+        endDate: MONDAY,
+        overwriteLocked: false,
+      },
+      CTX,
+    );
 
     expect(result.inserted).toBe(0);
     expect(result.skipped).toBe(1);
@@ -178,13 +193,16 @@ describe('GenerationService.generate — locked records', () => {
 
     const svc = makeSvc(new Map([['EGN11', mondayHistory()]]));
 
-    const result = await svc.generate({
-      usrSystemCompanyId: COMPANY,
-      employeeCodes: ['EGN11'],
-      startDate: MONDAY,
-      endDate: MONDAY,
-      overwriteLocked: true,
-    });
+    const result = await svc.generate(
+      {
+        usrSystemCompanyId: COMPANY,
+        employeeCodes: ['EGN11'],
+        startDate: MONDAY,
+        endDate: MONDAY,
+        overwriteLocked: true,
+      },
+      CTX,
+    );
 
     expect(result.inserted).toBe(1);
     expect(result.skipped).toBe(0);

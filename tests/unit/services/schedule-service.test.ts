@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ScheduleService, DuplicateScheduleError } from '@/lib/services/schedule-service';
+import type { AuditCtx } from '@/lib/services/audit-service';
+
+const CTX: AuditCtx = { userId: 1, source: 'api' };
 
 const makeRepo = () => ({
   findFirst: vi.fn(),
@@ -11,13 +14,27 @@ const makeRepo = () => ({
   findLocked: vi.fn(),
 });
 
-const makeDb = () => ({
-  laborSchedule: {
-    delete: vi.fn(),
-    create: vi.fn(),
-  },
-  $transaction: vi.fn().mockResolvedValue([]),
-});
+// Interactive-transaction-aware db mock. $transaction receives a callback and
+// executes it immediately with the db object itself as the transaction client.
+const makeDb = () => {
+  const db: any = {
+    laborSchedule: {
+      delete: vi.fn(),
+      create: vi.fn(),
+      findMany: vi.fn().mockResolvedValue([]),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      count: vi.fn().mockResolvedValue(0),
+    },
+    $transaction: vi.fn().mockImplementation((fn: any) => {
+      if (typeof fn === 'function') return fn(db);
+      return Promise.resolve([]);
+    }),
+  };
+  return db;
+};
+
+const makeAuditSvc = () => ({ record: vi.fn().mockResolvedValue(undefined) });
 
 type Repo = ReturnType<typeof makeRepo>;
 type Db = ReturnType<typeof makeDb>;
@@ -27,29 +44,38 @@ type Db = ReturnType<typeof makeDb>;
 describe('ScheduleService.save', () => {
   let repo: Repo;
   let db: Db;
+  let auditSvc: ReturnType<typeof makeAuditSvc>;
   let svc: ScheduleService;
 
   beforeEach(() => {
     repo = makeRepo();
     db = makeDb();
-    svc = new ScheduleService(repo as any, db as any);
+    auditSvc = makeAuditSvc();
+    svc = new ScheduleService(repo as any, db as any, undefined as any, auditSvc as any);
   });
 
-  it('inserts new record and wraps in transaction', async () => {
+  it('inserts new record inside interactive transaction', async () => {
     repo.findFirst.mockResolvedValue(null);
-    const insertOp = Symbol('insert');
-    db.laborSchedule.create.mockReturnValue(insertOp);
+    db.laborSchedule.create.mockResolvedValue({ id: 10, clockIn: '8:00 AM', clockOut: '5:00 PM' });
 
-    const result = await svc.save({
-      usrSystemCompanyId: 'CO1',
-      hotel: 'Hotel A',
-      changes: [
-        { employeeCode: 'E001', date: '2024-01-01', clockIn: '8:00 AM', clockOut: '5:00 PM' },
-      ],
-    });
+    const result = await svc.save(
+      {
+        usrSystemCompanyId: 'CO1',
+        hotel: 'Hotel A',
+        changes: [
+          { employeeCode: 'E001', date: '2024-01-01', clockIn: '8:00 AM', clockOut: '5:00 PM' },
+        ],
+      },
+      CTX,
+    );
 
     expect(result).toEqual({ inserted: 1, updated: 0, skipped: 0 });
-    expect(db.$transaction).toHaveBeenCalledWith([insertOp]);
+    expect(db.$transaction).toHaveBeenCalledOnce();
+    expect(db.laborSchedule.create).toHaveBeenCalledOnce();
+    expect(auditSvc.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'schedule.save', oldJson: null }),
+      db,
+    );
   });
 
   it('updates existing record with different clock times', async () => {
@@ -67,32 +93,39 @@ describe('ScheduleService.save', () => {
       positionName: null,
       locked: false,
     });
-    const deleteOp = Symbol('delete');
-    const insertOp = Symbol('insert');
-    db.laborSchedule.delete.mockReturnValue(deleteOp);
-    db.laborSchedule.create.mockReturnValue(insertOp);
+    db.laborSchedule.delete.mockResolvedValue({});
+    db.laborSchedule.create.mockResolvedValue({ id: 43, clockIn: '8:00 AM', clockOut: '5:00 PM' });
 
-    const result = await svc.save({
-      usrSystemCompanyId: 'CO1',
-      changes: [
-        { employeeCode: 'E001', date: '2024-01-01', clockIn: '8:00 AM', clockOut: '5:00 PM' },
-      ],
-    });
+    const result = await svc.save(
+      {
+        usrSystemCompanyId: 'CO1',
+        changes: [
+          { employeeCode: 'E001', date: '2024-01-01', clockIn: '8:00 AM', clockOut: '5:00 PM' },
+        ],
+      },
+      CTX,
+    );
 
     expect(result).toEqual({ inserted: 0, updated: 1, skipped: 0 });
     expect(db.laborSchedule.delete).toHaveBeenCalledWith({ where: { id: 42 } });
-    expect(db.$transaction).toHaveBeenCalledWith([deleteOp, insertOp]);
+    expect(auditSvc.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'schedule.save', scheduleId: 43 }),
+      db,
+    );
   });
 
   it('skips record when clock times are identical', async () => {
     repo.findFirst.mockResolvedValue({ id: 1, clockIn: '8:00 AM', clockOut: '5:00 PM' });
 
-    const result = await svc.save({
-      usrSystemCompanyId: 'CO1',
-      changes: [
-        { employeeCode: 'E001', date: '2024-01-01', clockIn: '8:00 AM', clockOut: '5:00 PM' },
-      ],
-    });
+    const result = await svc.save(
+      {
+        usrSystemCompanyId: 'CO1',
+        changes: [
+          { employeeCode: 'E001', date: '2024-01-01', clockIn: '8:00 AM', clockOut: '5:00 PM' },
+        ],
+      },
+      CTX,
+    );
 
     expect(result).toEqual({ inserted: 0, updated: 0, skipped: 1 });
     expect(db.$transaction).not.toHaveBeenCalled();
@@ -101,43 +134,51 @@ describe('ScheduleService.save', () => {
   it('does not call transaction when all changes are skipped', async () => {
     repo.findFirst.mockResolvedValue({ id: 1, clockIn: '8:00 AM', clockOut: '5:00 PM' });
 
-    await svc.save({
-      usrSystemCompanyId: 'CO1',
-      changes: [
-        { employeeCode: 'E001', date: '2024-01-01', clockIn: '8:00 AM', clockOut: '5:00 PM' },
-        { employeeCode: 'E002', date: '2024-01-02', clockIn: '8:00 AM', clockOut: '5:00 PM' },
-      ],
-    });
+    await svc.save(
+      {
+        usrSystemCompanyId: 'CO1',
+        changes: [
+          { employeeCode: 'E001', date: '2024-01-01', clockIn: '8:00 AM', clockOut: '5:00 PM' },
+          { employeeCode: 'E002', date: '2024-01-02', clockIn: '8:00 AM', clockOut: '5:00 PM' },
+        ],
+      },
+      CTX,
+    );
 
     expect(db.$transaction).not.toHaveBeenCalled();
   });
 
-  it('batches multiple changes into one transaction call', async () => {
+  it('handles multiple changes in one transaction', async () => {
     repo.findFirst.mockResolvedValue(null);
-    const op1 = Symbol('op1');
-    const op2 = Symbol('op2');
-    db.laborSchedule.create.mockReturnValueOnce(op1).mockReturnValueOnce(op2);
+    db.laborSchedule.create.mockResolvedValueOnce({ id: 1 }).mockResolvedValueOnce({ id: 2 });
 
-    const result = await svc.save({
-      usrSystemCompanyId: 'CO1',
-      changes: [
-        { employeeCode: 'E001', date: '2024-01-01' },
-        { employeeCode: 'E002', date: '2024-01-02' },
-      ],
-    });
+    const result = await svc.save(
+      {
+        usrSystemCompanyId: 'CO1',
+        changes: [
+          { employeeCode: 'E001', date: '2024-01-01' },
+          { employeeCode: 'E002', date: '2024-01-02' },
+        ],
+      },
+      CTX,
+    );
 
     expect(result).toEqual({ inserted: 2, updated: 0, skipped: 0 });
-    expect(db.$transaction).toHaveBeenCalledWith([op1, op2]);
-    expect(db.$transaction).toHaveBeenCalledTimes(1);
+    expect(db.$transaction).toHaveBeenCalledOnce();
+    expect(db.laborSchedule.create).toHaveBeenCalledTimes(2);
+    expect(auditSvc.record).toHaveBeenCalledTimes(2);
   });
 
   it('treats null clockIn same as empty string (skip)', async () => {
     repo.findFirst.mockResolvedValue({ id: 1, clockIn: null, clockOut: null });
 
-    const result = await svc.save({
-      usrSystemCompanyId: 'CO1',
-      changes: [{ employeeCode: 'E001', date: '2024-01-01', clockIn: null, clockOut: null }],
-    });
+    const result = await svc.save(
+      {
+        usrSystemCompanyId: 'CO1',
+        changes: [{ employeeCode: 'E001', date: '2024-01-01', clockIn: null, clockOut: null }],
+      },
+      CTX,
+    );
 
     expect(result.skipped).toBe(1);
   });
@@ -157,15 +198,18 @@ describe('ScheduleService.save', () => {
       positionName: 'Housekeeper',
       locked: true,
     });
-    db.laborSchedule.delete.mockReturnValue(Symbol());
-    db.laborSchedule.create.mockReturnValue(Symbol());
+    db.laborSchedule.delete.mockResolvedValue({});
+    db.laborSchedule.create.mockResolvedValue({ id: 6 });
 
-    await svc.save({
-      usrSystemCompanyId: 'CO1',
-      changes: [
-        { employeeCode: 'E001', date: '2024-01-01', clockIn: '8:00 AM', clockOut: '4:00 PM' },
-      ],
-    });
+    await svc.save(
+      {
+        usrSystemCompanyId: 'CO1',
+        changes: [
+          { employeeCode: 'E001', date: '2024-01-01', clockIn: '8:00 AM', clockOut: '4:00 PM' },
+        ],
+      },
+      CTX,
+    );
 
     const createCall = db.laborSchedule.create.mock.calls[0]![0];
     expect(createCall.data.deptName).toBe('Housekeeping');
@@ -179,55 +223,67 @@ describe('ScheduleService.save', () => {
 describe('ScheduleService.add', () => {
   let repo: Repo;
   let db: Db;
+  let auditSvc: ReturnType<typeof makeAuditSvc>;
   let svc: ScheduleService;
 
   beforeEach(() => {
     repo = makeRepo();
     db = makeDb();
-    svc = new ScheduleService(repo as any, db as any);
+    auditSvc = makeAuditSvc();
+    svc = new ScheduleService(repo as any, db as any, undefined as any, auditSvc as any);
   });
 
-  it('creates record and returns id', async () => {
+  it('creates record inside transaction and returns id', async () => {
     repo.findFirst.mockResolvedValue(null);
-    repo.create.mockResolvedValue({ id: 99 });
+    db.laborSchedule.create.mockResolvedValue({ id: 99, locked: true });
 
-    const result = await svc.add({
-      usrSystemCompanyId: 'CO1',
-      employeeCode: 'E001',
-      date: '2024-01-01',
-    });
+    const result = await svc.add(
+      { usrSystemCompanyId: 'CO1', employeeCode: 'E001', date: '2024-01-01' },
+      CTX,
+    );
 
     expect(result).toEqual({ id: 99 });
-    expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ locked: true }));
+    expect(db.laborSchedule.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ locked: true }) }),
+    );
+    expect(auditSvc.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'schedule.add', oldJson: null }),
+      db,
+    );
   });
 
   it('auto-locks manually added records', async () => {
     repo.findFirst.mockResolvedValue(null);
-    repo.create.mockResolvedValue({ id: 1 });
+    db.laborSchedule.create.mockResolvedValue({ id: 1 });
 
-    await svc.add({ usrSystemCompanyId: 'CO1', employeeCode: 'E001', date: '2024-01-01' });
+    await svc.add({ usrSystemCompanyId: 'CO1', employeeCode: 'E001', date: '2024-01-01' }, CTX);
 
-    expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ locked: true }));
+    expect(db.laborSchedule.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ locked: true }) }),
+    );
   });
 
   it('throws DuplicateScheduleError when record exists for same employee+date+position', async () => {
     repo.findFirst.mockResolvedValue({ id: 1 });
 
     await expect(
-      svc.add({ usrSystemCompanyId: 'CO1', employeeCode: 'E001', date: '2024-01-01' }),
+      svc.add({ usrSystemCompanyId: 'CO1', employeeCode: 'E001', date: '2024-01-01' }, CTX),
     ).rejects.toThrow(DuplicateScheduleError);
   });
 
   it('checks position-specific uniqueness', async () => {
     repo.findFirst.mockResolvedValue(null);
-    repo.create.mockResolvedValue({ id: 5 });
+    db.laborSchedule.create.mockResolvedValue({ id: 5 });
 
-    await svc.add({
-      usrSystemCompanyId: 'CO1',
-      employeeCode: 'E001',
-      date: '2024-01-01',
-      positionName: 'Manager',
-    });
+    await svc.add(
+      {
+        usrSystemCompanyId: 'CO1',
+        employeeCode: 'E001',
+        date: '2024-01-01',
+        positionName: 'Manager',
+      },
+      CTX,
+    );
 
     expect(repo.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({ positionName: 'Manager' }),
@@ -236,14 +292,12 @@ describe('ScheduleService.add', () => {
 
   it('normalises empty positionName to null', async () => {
     repo.findFirst.mockResolvedValue(null);
-    repo.create.mockResolvedValue({ id: 5 });
+    db.laborSchedule.create.mockResolvedValue({ id: 5 });
 
-    await svc.add({
-      usrSystemCompanyId: 'CO1',
-      employeeCode: 'E001',
-      date: '2024-01-01',
-      positionName: '',
-    });
+    await svc.add(
+      { usrSystemCompanyId: 'CO1', employeeCode: 'E001', date: '2024-01-01', positionName: '' },
+      CTX,
+    );
 
     expect(repo.findFirst).toHaveBeenCalledWith(expect.objectContaining({ positionName: null }));
   });
@@ -252,87 +306,142 @@ describe('ScheduleService.add', () => {
 // ------- lock -------
 
 describe('ScheduleService.lock', () => {
-  it('calls updateLocked for each record and sums counts', async () => {
-    const repo = makeRepo();
-    repo.updateLocked.mockResolvedValueOnce(2).mockResolvedValueOnce(3);
-    const svc = new ScheduleService(repo as any, makeDb() as any);
+  let db: Db;
+  let auditSvc: ReturnType<typeof makeAuditSvc>;
+  let svc: ScheduleService;
 
-    const result = await svc.lock({
-      usrSystemCompanyId: 'CO1',
-      records: [
-        { employeeCode: 'E001', date: '2024-01-01' },
-        { employeeCode: 'E002', date: '2024-01-02' },
-      ],
-      locked: true,
-    });
+  beforeEach(() => {
+    db = makeDb();
+    auditSvc = makeAuditSvc();
+    svc = new ScheduleService(makeRepo() as any, db as any, undefined as any, auditSvc as any);
+  });
 
-    expect(result).toEqual({ updated: 5 });
-    expect(repo.updateLocked).toHaveBeenCalledTimes(2);
+  it('finds records, updates locked flag, writes audit rows', async () => {
+    db.laborSchedule.findMany
+      .mockResolvedValueOnce([{ id: 10, locked: false }])
+      .mockResolvedValueOnce([
+        { id: 11, locked: false },
+        { id: 12, locked: false },
+      ]);
+    db.laborSchedule.updateMany.mockResolvedValue({ count: 1 });
+
+    const result = await svc.lock(
+      {
+        usrSystemCompanyId: 'CO1',
+        records: [
+          { employeeCode: 'E001', date: '2024-01-01' },
+          { employeeCode: 'E002', date: '2024-01-02' },
+        ],
+        locked: true,
+      },
+      CTX,
+    );
+
+    expect(result).toEqual({ updated: 3 });
+    expect(db.laborSchedule.updateMany).toHaveBeenCalledTimes(2);
+    expect(auditSvc.record).toHaveBeenCalledTimes(3);
+    expect(auditSvc.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'schedule.lock', scheduleId: 10 }),
+      db,
+    );
   });
 
   it('returns 0 for empty records array', async () => {
-    const repo = makeRepo();
-    const svc = new ScheduleService(repo as any, makeDb() as any);
-
-    const result = await svc.lock({ usrSystemCompanyId: 'CO1', records: [], locked: false });
+    const result = await svc.lock({ usrSystemCompanyId: 'CO1', records: [], locked: false }, CTX);
 
     expect(result).toEqual({ updated: 0 });
-    expect(repo.updateLocked).not.toHaveBeenCalled();
+    expect(db.laborSchedule.findMany).not.toHaveBeenCalled();
   });
 });
 
 // ------- clear -------
 
 describe('ScheduleService.clear', () => {
-  it('delegates to repo.clearRange and returns counts', async () => {
-    const repo = makeRepo();
-    repo.clearRange.mockResolvedValue({ deleted: 5, lockedSkipped: 2 });
-    const svc = new ScheduleService(repo as any, makeDb() as any);
+  let db: Db;
+  let auditSvc: ReturnType<typeof makeAuditSvc>;
+  let svc: ScheduleService;
 
-    const result = await svc.clear({
-      usrSystemCompanyId: 'CO1',
-      employeeCodes: ['E001'],
-      startDate: '2024-01-01',
-      endDate: '2024-01-07',
-      clearLocked: false,
-    });
+  beforeEach(() => {
+    db = makeDb();
+    auditSvc = makeAuditSvc();
+    svc = new ScheduleService(makeRepo() as any, db as any, undefined as any, auditSvc as any);
+  });
 
-    expect(result).toEqual({ deleted: 5, lockedSkipped: 2 });
-    expect(repo.clearRange).toHaveBeenCalledWith(expect.objectContaining({ clearLocked: false }));
+  it('writes audit rows and deletes unlocked records, skips locked', async () => {
+    db.laborSchedule.count.mockResolvedValue(2); // lockedSkipped
+    db.laborSchedule.findMany.mockResolvedValue([{ id: 5, clockIn: '8:00 AM' }]);
+    db.laborSchedule.deleteMany.mockResolvedValue({ count: 1 });
+
+    const result = await svc.clear(
+      {
+        usrSystemCompanyId: 'CO1',
+        employeeCodes: ['E001'],
+        startDate: '2024-01-01',
+        endDate: '2024-01-07',
+        clearLocked: false,
+      },
+      CTX,
+    );
+
+    expect(result).toEqual({ deleted: 1, lockedSkipped: 2 });
+    expect(auditSvc.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'schedule.clear', scheduleId: 5, newJson: null }),
+      db,
+    );
   });
 
   it('defaults clearLocked to false when omitted', async () => {
-    const repo = makeRepo();
-    repo.clearRange.mockResolvedValue({ deleted: 0, lockedSkipped: 0 });
-    const svc = new ScheduleService(repo as any, makeDb() as any);
+    db.laborSchedule.count.mockResolvedValue(0);
+    db.laborSchedule.findMany.mockResolvedValue([]);
+    db.laborSchedule.deleteMany.mockResolvedValue({ count: 0 });
 
-    await svc.clear({
-      usrSystemCompanyId: 'CO1',
-      employeeCodes: [],
-      startDate: '2024-01-01',
-      endDate: '2024-01-07',
-    });
+    const result = await svc.clear(
+      {
+        usrSystemCompanyId: 'CO1',
+        employeeCodes: [],
+        startDate: '2024-01-01',
+        endDate: '2024-01-07',
+      },
+      CTX,
+    );
 
-    expect(repo.clearRange).toHaveBeenCalledWith(expect.objectContaining({ clearLocked: false }));
+    expect(result).toEqual({ deleted: 0, lockedSkipped: 0 });
   });
 });
 
 // ------- delete -------
 
 describe('ScheduleService.delete', () => {
-  it('delegates to repo.deleteRange and returns count', async () => {
-    const repo = makeRepo();
-    repo.deleteRange.mockResolvedValue(4);
-    const svc = new ScheduleService(repo as any, makeDb() as any);
+  let db: Db;
+  let auditSvc: ReturnType<typeof makeAuditSvc>;
+  let svc: ScheduleService;
 
-    const result = await svc.delete({
-      usrSystemCompanyId: 'CO1',
-      employeeCodes: ['E001', 'E002'],
-      startDate: '2024-01-01',
-      endDate: '2024-01-31',
-    });
+  beforeEach(() => {
+    db = makeDb();
+    auditSvc = makeAuditSvc();
+    svc = new ScheduleService(makeRepo() as any, db as any, undefined as any, auditSvc as any);
+  });
 
-    expect(result).toEqual({ deleted: 4 });
+  it('writes audit rows for each record then deletes all', async () => {
+    db.laborSchedule.findMany.mockResolvedValue([{ id: 20 }, { id: 21 }]);
+    db.laborSchedule.deleteMany.mockResolvedValue({ count: 2 });
+
+    const result = await svc.delete(
+      {
+        usrSystemCompanyId: 'CO1',
+        employeeCodes: ['E001', 'E002'],
+        startDate: '2024-01-01',
+        endDate: '2024-01-31',
+      },
+      CTX,
+    );
+
+    expect(result).toEqual({ deleted: 2 });
+    expect(auditSvc.record).toHaveBeenCalledTimes(2);
+    expect(auditSvc.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'schedule.delete', newJson: null }),
+      db,
+    );
   });
 });
 
@@ -345,7 +454,12 @@ describe('ScheduleService.checkLocked', () => {
     ];
     const repo = makeRepo();
     repo.findLocked.mockResolvedValue(lockedRecords);
-    const svc = new ScheduleService(repo as any, makeDb() as any);
+    const svc = new ScheduleService(
+      repo as any,
+      makeDb() as any,
+      undefined as any,
+      makeAuditSvc() as any,
+    );
 
     const result = await svc.checkLocked({
       usrSystemCompanyId: 'CO1',

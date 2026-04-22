@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     }
 
     const svc = makeScheduleService();
-    const result = await svc.save(parsed.data);
+    const result = await svc.save(parsed.data, { userId: user.userId, source: 'api' });
     return NextResponse.json(result);
   } catch (error) {
     logger.error({ err: error }, 'Schedule save error');

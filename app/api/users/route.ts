@@ -5,6 +5,7 @@ import { getUserPermissions } from '@/lib/auth/rbac';
 import { makeUserService, type UserScope } from '@/lib/services/user-service';
 import { mapErrorResponse } from '@/lib/http/map-error';
 import { CreateUserBodySchema } from '@/lib/schemas/user';
+import type { AuditCtx } from '@/lib/services/audit-service';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -77,16 +78,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const user = await makeUserService().create({
-      firstName,
-      lastName,
-      email,
-      password,
-      role,
-      tenants,
-      hotels,
-      departments,
-    });
+    const ctx: AuditCtx = { userId: currentUserId, source: 'api' };
+    const user = await makeUserService().create(
+      { firstName, lastName, email, password, role, tenants, hotels, departments },
+      ctx,
+    );
     return NextResponse.json(user, { status: 201 });
   } catch (err) {
     return mapErrorResponse(err, 'POST /api/users error');

@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const svc = makeScheduleService();
-    const result = await svc.add(parsed.data);
+    const result = await svc.add(parsed.data, { userId: user.userId, source: 'api' });
     return NextResponse.json({ success: true, id: result.id });
   } catch (error) {
     return mapErrorResponse(error, 'Schedule add error');

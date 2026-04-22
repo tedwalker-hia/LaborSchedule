@@ -6,6 +6,7 @@ import {
   type LockedRecord,
 } from '../repositories/schedules-repo';
 import { PayrollRepo, makePayrollRepo } from '../repositories/payroll-repo';
+import { AuditService, AuditCtx, makeAuditService } from './audit-service';
 import { calcHours } from '../domain/rules';
 
 export class DuplicateScheduleError extends Error {
@@ -139,95 +140,123 @@ export class ScheduleService {
     private readonly repo: SchedulesRepo,
     private readonly db: PrismaClient = prisma,
     private readonly payrollRepo: PayrollRepo = makePayrollRepo(),
+    private readonly auditService: AuditService = makeAuditService(),
   ) {}
 
   /**
    * Saves a batch of schedule changes. Each change is a delete-then-insert if
    * the record exists with different values. All mutations run in a single
-   * prisma.$transaction batched-array call so partial failures roll back.
+   * prisma.$transaction so partial failures roll back, including audit rows.
    */
-  async save(params: SaveParams): Promise<SaveResult> {
+  async save(params: SaveParams, ctx: AuditCtx): Promise<SaveResult> {
     const { usrSystemCompanyId, hotel, branchId, tenant, changes } = params;
-    const ops: Prisma.PrismaPromise<unknown>[] = [];
     let inserted = 0;
     let updated = 0;
     let skipped = 0;
 
-    for (const change of changes) {
-      const scheduleDate = new Date(change.date + 'T00:00:00Z');
-      const existing = await this.repo.findFirst({
-        usrSystemCompanyId,
-        employeeCode: change.employeeCode,
-        scheduleDate,
-      });
+    // Pre-load existing records outside the transaction (consistent with prior behaviour).
+    const resolved = await Promise.all(
+      changes.map(async (change) => {
+        const scheduleDate = new Date(change.date + 'T00:00:00Z');
+        const existing = await this.repo.findFirst({
+          usrSystemCompanyId,
+          employeeCode: change.employeeCode,
+          scheduleDate,
+        });
+        return { change, scheduleDate, existing };
+      }),
+    );
 
-      const clockIn = change.clockIn || null;
-      const clockOut = change.clockOut || null;
-      const isClearing = !clockIn && !clockOut;
-      const hours = clockIn && clockOut ? calcHours(clockIn, clockOut) : null;
-
+    // Filter out no-op changes and count skipped.
+    const toProcess = resolved.filter(({ change, existing }) => {
       if (existing) {
-        const sameClockIn = (existing.clockIn ?? null) === clockIn;
-        const sameClockOut = (existing.clockOut ?? null) === clockOut;
-        if (sameClockIn && sameClockOut) {
+        const clockIn = change.clockIn || null;
+        const clockOut = change.clockOut || null;
+        if ((existing.clockIn ?? null) === clockIn && (existing.clockOut ?? null) === clockOut) {
           skipped++;
-          continue;
+          return false;
         }
-
-        ops.push(this.db.laborSchedule.delete({ where: { id: existing.id } }));
-        ops.push(
-          this.db.laborSchedule.create({
-            data: {
-              usrSystemCompanyId,
-              branchId: branchId ?? existing.branchId,
-              hotelName: hotel ?? existing.hotelName,
-              employeeCode: change.employeeCode,
-              firstName: change.firstName ?? existing.firstName,
-              lastName: change.lastName ?? existing.lastName,
-              scheduleDate,
-              clockIn: isClearing ? null : clockIn,
-              clockOut: isClearing ? null : clockOut,
-              hours: isClearing ? null : hours,
-              tenant: tenant ?? existing.tenant,
-              deptName: existing.deptName,
-              multiDept: existing.multiDept,
-              positionName: existing.positionName,
-              locked: existing.locked,
-            },
-          }),
-        );
-        updated++;
-      } else {
-        ops.push(
-          this.db.laborSchedule.create({
-            data: {
-              usrSystemCompanyId,
-              branchId,
-              hotelName: hotel,
-              employeeCode: change.employeeCode,
-              firstName: change.firstName,
-              lastName: change.lastName,
-              scheduleDate,
-              clockIn: isClearing ? null : clockIn,
-              clockOut: isClearing ? null : clockOut,
-              hours: isClearing ? null : hours,
-              tenant,
-            },
-          }),
-        );
-        inserted++;
       }
-    }
+      return true;
+    });
 
-    if (ops.length > 0) {
-      await this.db.$transaction(ops);
+    if (toProcess.length > 0) {
+      await this.db.$transaction(async (tx) => {
+        for (const { change, scheduleDate, existing } of toProcess) {
+          const clockIn = change.clockIn || null;
+          const clockOut = change.clockOut || null;
+          const isClearing = !clockIn && !clockOut;
+          const hours = clockIn && clockOut ? calcHours(clockIn, clockOut) : null;
+
+          if (existing) {
+            await tx.laborSchedule.delete({ where: { id: existing.id } });
+            const created = await tx.laborSchedule.create({
+              data: {
+                usrSystemCompanyId,
+                branchId: branchId ?? existing.branchId,
+                hotelName: hotel ?? existing.hotelName,
+                employeeCode: change.employeeCode,
+                firstName: change.firstName ?? existing.firstName,
+                lastName: change.lastName ?? existing.lastName,
+                scheduleDate,
+                clockIn: isClearing ? null : clockIn,
+                clockOut: isClearing ? null : clockOut,
+                hours: isClearing ? null : hours,
+                tenant: tenant ?? existing.tenant,
+                deptName: existing.deptName,
+                multiDept: existing.multiDept,
+                positionName: existing.positionName,
+                locked: existing.locked,
+              },
+            });
+            await this.auditService.record(
+              {
+                scheduleId: created.id,
+                changedByUserId: ctx.userId,
+                action: 'schedule.save',
+                oldJson: JSON.stringify(existing),
+                newJson: JSON.stringify(created),
+              },
+              tx,
+            );
+            updated++;
+          } else {
+            const created = await tx.laborSchedule.create({
+              data: {
+                usrSystemCompanyId,
+                branchId,
+                hotelName: hotel,
+                employeeCode: change.employeeCode,
+                firstName: change.firstName,
+                lastName: change.lastName,
+                scheduleDate,
+                clockIn: isClearing ? null : clockIn,
+                clockOut: isClearing ? null : clockOut,
+                hours: isClearing ? null : hours,
+                tenant,
+              },
+            });
+            await this.auditService.record(
+              {
+                scheduleId: created.id,
+                changedByUserId: ctx.userId,
+                action: 'schedule.save',
+                oldJson: null,
+                newJson: JSON.stringify(created),
+              },
+              tx,
+            );
+            inserted++;
+          }
+        }
+      });
     }
 
     return { inserted, updated, skipped };
   }
 
   /** Manually adds a single schedule record. Auto-locks the record. Throws DuplicateScheduleError if one already exists for this employee+date+position. */
-  async add(params: AddParams): Promise<{ id: number }> {
+  async add(params: AddParams, ctx: AuditCtx): Promise<{ id: number }> {
     const scheduleDate = new Date(params.date + 'T00:00:00Z');
     const positionName = params.positionName || null;
 
@@ -245,58 +274,173 @@ export class ScheduleService {
     const hours =
       params.clockIn && params.clockOut ? calcHours(params.clockIn, params.clockOut) : null;
 
-    const record = await this.repo.create({
-      usrSystemCompanyId: params.usrSystemCompanyId,
-      branchId: params.branchId,
-      hotelName: params.hotel,
-      employeeCode: params.employeeCode,
-      firstName: params.firstName,
-      lastName: params.lastName,
-      scheduleDate,
-      clockIn: params.clockIn || null,
-      clockOut: params.clockOut || null,
-      hours,
-      tenant: params.tenant,
-      deptName: params.deptName || null,
-      positionName,
-      locked: true,
+    const record = await this.db.$transaction(async (tx) => {
+      const created = await tx.laborSchedule.create({
+        data: {
+          usrSystemCompanyId: params.usrSystemCompanyId,
+          branchId: params.branchId,
+          hotelName: params.hotel,
+          employeeCode: params.employeeCode,
+          firstName: params.firstName,
+          lastName: params.lastName,
+          scheduleDate,
+          clockIn: params.clockIn || null,
+          clockOut: params.clockOut || null,
+          hours,
+          tenant: params.tenant,
+          deptName: params.deptName || null,
+          positionName,
+          locked: true,
+        },
+      });
+      await this.auditService.record(
+        {
+          scheduleId: created.id,
+          changedByUserId: ctx.userId,
+          action: 'schedule.add',
+          oldJson: null,
+          newJson: JSON.stringify(created),
+        },
+        tx,
+      );
+      return created;
     });
 
     return { id: record.id };
   }
 
-  async lock(params: LockParams): Promise<{ updated: number }> {
+  async lock(params: LockParams, ctx: AuditCtx): Promise<{ updated: number }> {
     let updatedCount = 0;
-    for (const rec of params.records) {
-      const scheduleDate = new Date(rec.date + 'T00:00:00Z');
-      const count = await this.repo.updateLocked({
-        usrSystemCompanyId: params.usrSystemCompanyId,
-        employeeCode: rec.employeeCode,
-        scheduleDate,
-        locked: params.locked,
-      });
-      updatedCount += count;
-    }
+
+    await this.db.$transaction(async (tx) => {
+      for (const rec of params.records) {
+        const scheduleDate = new Date(rec.date + 'T00:00:00Z');
+        const records = await tx.laborSchedule.findMany({
+          where: {
+            usrSystemCompanyId: params.usrSystemCompanyId,
+            employeeCode: rec.employeeCode,
+            scheduleDate,
+          },
+        });
+        if (records.length > 0) {
+          await tx.laborSchedule.updateMany({
+            where: {
+              usrSystemCompanyId: params.usrSystemCompanyId,
+              employeeCode: rec.employeeCode,
+              scheduleDate,
+            },
+            data: { locked: params.locked },
+          });
+          for (const r of records) {
+            await this.auditService.record(
+              {
+                scheduleId: r.id,
+                changedByUserId: ctx.userId,
+                action: 'schedule.lock',
+                oldJson: JSON.stringify({ locked: r.locked }),
+                newJson: JSON.stringify({ locked: params.locked }),
+              },
+              tx,
+            );
+          }
+          updatedCount += records.length;
+        }
+      }
+    });
+
     return { updated: updatedCount };
   }
 
-  async clear(params: ClearParams): Promise<{ deleted: number; lockedSkipped: number }> {
-    return this.repo.clearRange({
+  async clear(
+    params: ClearParams,
+    ctx: AuditCtx,
+  ): Promise<{ deleted: number; lockedSkipped: number }> {
+    const startDate = new Date(params.startDate + 'T00:00:00Z');
+    const endDate = new Date(params.endDate + 'T00:00:00Z');
+    const clearLocked = params.clearLocked ?? false;
+
+    const baseWhere: Prisma.LaborScheduleWhereInput = {
       usrSystemCompanyId: params.usrSystemCompanyId,
-      employeeCodes: params.employeeCodes,
-      startDate: new Date(params.startDate + 'T00:00:00Z'),
-      endDate: new Date(params.endDate + 'T00:00:00Z'),
-      clearLocked: params.clearLocked ?? false,
+      employeeCode: { in: params.employeeCodes },
+      scheduleDate: { gte: startDate, lte: endDate },
+    };
+
+    let deleted = 0;
+    let lockedSkipped = 0;
+
+    await this.db.$transaction(async (tx) => {
+      if (clearLocked) {
+        const records = await tx.laborSchedule.findMany({ where: baseWhere });
+        for (const r of records) {
+          await this.auditService.record(
+            {
+              scheduleId: r.id,
+              changedByUserId: ctx.userId,
+              action: 'schedule.clear',
+              oldJson: JSON.stringify(r),
+              newJson: null,
+            },
+            tx,
+          );
+        }
+        const result = await tx.laborSchedule.deleteMany({ where: baseWhere });
+        deleted = result.count;
+      } else {
+        lockedSkipped = await tx.laborSchedule.count({ where: { ...baseWhere, locked: true } });
+        const deleteWhere: Prisma.LaborScheduleWhereInput = {
+          ...baseWhere,
+          OR: [{ locked: false }, { locked: null }],
+        };
+        const records = await tx.laborSchedule.findMany({ where: deleteWhere });
+        for (const r of records) {
+          await this.auditService.record(
+            {
+              scheduleId: r.id,
+              changedByUserId: ctx.userId,
+              action: 'schedule.clear',
+              oldJson: JSON.stringify(r),
+              newJson: null,
+            },
+            tx,
+          );
+        }
+        const result = await tx.laborSchedule.deleteMany({ where: deleteWhere });
+        deleted = result.count;
+      }
     });
+
+    return { deleted, lockedSkipped };
   }
 
-  async delete(params: DeleteParams): Promise<{ deleted: number }> {
-    const deleted = await this.repo.deleteRange({
+  async delete(params: DeleteParams, ctx: AuditCtx): Promise<{ deleted: number }> {
+    const startDate = new Date(params.startDate + 'T00:00:00Z');
+    const endDate = new Date(params.endDate + 'T00:00:00Z');
+    const where: Prisma.LaborScheduleWhereInput = {
       usrSystemCompanyId: params.usrSystemCompanyId,
-      employeeCodes: params.employeeCodes,
-      startDate: new Date(params.startDate + 'T00:00:00Z'),
-      endDate: new Date(params.endDate + 'T00:00:00Z'),
+      employeeCode: { in: params.employeeCodes },
+      scheduleDate: { gte: startDate, lte: endDate },
+    };
+
+    let deleted = 0;
+
+    await this.db.$transaction(async (tx) => {
+      const records = await tx.laborSchedule.findMany({ where });
+      for (const r of records) {
+        await this.auditService.record(
+          {
+            scheduleId: r.id,
+            changedByUserId: ctx.userId,
+            action: 'schedule.delete',
+            oldJson: JSON.stringify(r),
+            newJson: null,
+          },
+          tx,
+        );
+      }
+      const result = await tx.laborSchedule.deleteMany({ where });
+      deleted = result.count;
     });
+
     return { deleted };
   }
 
@@ -403,6 +547,7 @@ export function makeScheduleService(
   repo: SchedulesRepo = makeSchedulesRepo(),
   db: PrismaClient = prisma,
   payrollRepo: PayrollRepo = makePayrollRepo(),
+  auditService: AuditService = makeAuditService(),
 ): ScheduleService {
-  return new ScheduleService(repo, db, payrollRepo);
+  return new ScheduleService(repo, db, payrollRepo, auditService);
 }

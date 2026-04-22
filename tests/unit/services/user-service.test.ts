@@ -5,12 +5,15 @@ import {
   EmailConflictError,
   type UserScope,
 } from '@/lib/services/user-service';
+import type { AuditCtx } from '@/lib/services/audit-service';
 
 vi.mock('bcryptjs', () => ({
   default: {
     hash: vi.fn().mockResolvedValue('hashed-pw'),
   },
 }));
+
+const CTX: AuditCtx = { userId: 1, source: 'api' };
 
 const makeRepo = () => ({
   findById: vi.fn(),
@@ -24,9 +27,38 @@ const makeRepo = () => ({
   findWithScopes: vi.fn(),
 });
 
-const makeDb = () => ({
-  $transaction: vi.fn().mockImplementation((fn: (tx: unknown) => unknown) => fn({})),
+const makeAuditSvc = () => ({
+  record: vi.fn().mockResolvedValue(undefined),
 });
+
+const makeTx = () => ({
+  user: {
+    create: vi.fn().mockResolvedValue({
+      userId: 1,
+      email: 'test@test.com',
+      role: 'DeptAdmin',
+      isActive: true,
+      firstName: 'A',
+      lastName: 'B',
+      tenants: [],
+      hotels: [],
+      departments: [],
+    }),
+    update: vi.fn().mockResolvedValue({}),
+  },
+  userTenant: { deleteMany: vi.fn().mockResolvedValue({}) },
+  userHotel: { deleteMany: vi.fn().mockResolvedValue({}) },
+  userDept: { deleteMany: vi.fn().mockResolvedValue({}) },
+  laborScheduleAudit: { create: vi.fn().mockResolvedValue({}) },
+});
+
+const makeDb = () => {
+  const tx = makeTx();
+  return {
+    $transaction: vi.fn().mockImplementation((fn: (tx: unknown) => unknown) => fn(tx)),
+    _tx: tx,
+  };
+};
 
 type Repo = ReturnType<typeof makeRepo>;
 type Db = ReturnType<typeof makeDb>;
@@ -38,7 +70,7 @@ describe('UserService.list', () => {
   beforeEach(() => {
     repo = makeRepo();
     repo.findMany.mockResolvedValue([]);
-    svc = new UserService(repo as any, makeDb() as any);
+    svc = new UserService(repo as any, makeDb() as any, makeAuditSvc() as any);
   });
 
   it('passes { isActive: true } for scope all', async () => {
@@ -79,7 +111,7 @@ describe('UserService.get', () => {
 
   beforeEach(() => {
     repo = makeRepo();
-    svc = new UserService(repo as any, makeDb() as any);
+    svc = new UserService(repo as any, makeDb() as any, makeAuditSvc() as any);
   });
 
   it('returns user when found', async () => {
@@ -99,46 +131,56 @@ describe('UserService.get', () => {
 
 describe('UserService.create', () => {
   let repo: Repo;
+  let db: Db;
+  let auditSvc: ReturnType<typeof makeAuditSvc>;
   let svc: UserService;
 
   beforeEach(() => {
     repo = makeRepo();
+    db = makeDb();
+    auditSvc = makeAuditSvc();
     repo.findFirst.mockResolvedValue(null);
-    repo.create.mockResolvedValue({ userId: 1 });
-    svc = new UserService(repo as any, makeDb() as any);
+    svc = new UserService(repo as any, db as any, auditSvc as any);
   });
 
-  it('hashes password and calls repo.create', async () => {
-    await svc.create({
-      firstName: 'Alice',
-      lastName: 'Smith',
-      email: 'Alice@Example.com',
-      password: 'secret',
-      role: 'DeptAdmin',
-    });
+  it('wraps create in transaction and records audit', async () => {
+    await svc.create(
+      {
+        firstName: 'Alice',
+        lastName: 'Smith',
+        email: 'Alice@Example.com',
+        password: 'secret',
+        role: 'DeptAdmin',
+      },
+      CTX,
+    );
 
-    expect(repo.create).toHaveBeenCalledWith(
+    expect(db.$transaction).toHaveBeenCalled();
+    expect(auditSvc.record).toHaveBeenCalledWith(
       expect.objectContaining({
-        email: 'alice@example.com',
-        passwordHash: 'hashed-pw',
-        mustChangePassword: true,
-        isActive: true,
+        action: 'user.create',
+        oldJson: null,
+        changedByUserId: CTX.userId,
       }),
+      expect.anything(),
     );
   });
 
   it('throws EmailConflictError on duplicate email', async () => {
     repo.findFirst.mockResolvedValue({ userId: 99 });
     await expect(
-      svc.create({
-        firstName: 'Bob',
-        lastName: 'Jones',
-        email: 'dup@example.com',
-        password: 'pw',
-        role: 'DeptAdmin',
-      }),
+      svc.create(
+        {
+          firstName: 'Bob',
+          lastName: 'Jones',
+          email: 'dup@example.com',
+          password: 'pw',
+          role: 'DeptAdmin',
+        },
+        CTX,
+      ),
     ).rejects.toThrow(EmailConflictError);
-    expect(repo.create).not.toHaveBeenCalled();
+    expect(db.$transaction).not.toHaveBeenCalled();
   });
 });
 
@@ -147,51 +189,62 @@ describe('UserService.create', () => {
 describe('UserService.update', () => {
   let repo: Repo;
   let db: Db;
+  let auditSvc: ReturnType<typeof makeAuditSvc>;
   let svc: UserService;
 
   beforeEach(() => {
     repo = makeRepo();
     db = makeDb();
+    auditSvc = makeAuditSvc();
     repo.findById.mockResolvedValue({ userId: 1 });
     repo.findFirst.mockResolvedValue(null);
-    repo.updateWithAssignments.mockResolvedValue({ userId: 1 });
-    svc = new UserService(repo as any, db as any);
+    db._tx.user.update.mockResolvedValue({
+      userId: 1,
+      firstName: 'Updated',
+      tenants: [],
+      hotels: [],
+      departments: [],
+    });
+    svc = new UserService(repo as any, db as any, auditSvc as any);
   });
 
-  it.skip('wraps update in transaction', async () => {
-    await svc.update(1, {
-      firstName: 'Alice',
-      lastName: 'Smith',
-      email: 'alice@example.com',
-      role: 'DeptAdmin',
-    });
+  it('wraps update in transaction', async () => {
+    await svc.update(
+      1,
+      { firstName: 'Alice', lastName: 'Smith', email: 'alice@example.com', role: 'DeptAdmin' },
+      CTX,
+    );
     expect(db.$transaction).toHaveBeenCalled();
+  });
+
+  it('records audit with user.update action', async () => {
+    await svc.update(
+      1,
+      { firstName: 'Alice', lastName: 'Smith', email: 'alice@example.com', role: 'DeptAdmin' },
+      CTX,
+    );
+    expect(auditSvc.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'user.update', changedByUserId: CTX.userId }),
+      expect.anything(),
+    );
   });
 
   it('throws UserNotFoundError for unknown id', async () => {
     repo.findById.mockResolvedValue(null);
     await expect(
-      svc.update(99, { firstName: 'X', lastName: 'Y', email: 'x@y.com', role: 'DeptAdmin' }),
+      svc.update(99, { firstName: 'X', lastName: 'Y', email: 'x@y.com', role: 'DeptAdmin' }, CTX),
     ).rejects.toThrow(UserNotFoundError);
   });
 
   it('throws EmailConflictError on duplicate email', async () => {
     repo.findFirst.mockResolvedValue({ userId: 99 });
     await expect(
-      svc.update(1, { firstName: 'X', lastName: 'Y', email: 'dup@example.com', role: 'DeptAdmin' }),
+      svc.update(
+        1,
+        { firstName: 'X', lastName: 'Y', email: 'dup@example.com', role: 'DeptAdmin' },
+        CTX,
+      ),
     ).rejects.toThrow(EmailConflictError);
-  });
-
-  it.skip('hashes password when provided', async () => {
-    await svc.update(1, {
-      firstName: 'Alice',
-      lastName: 'Smith',
-      email: 'alice@example.com',
-      role: 'DeptAdmin',
-      password: 'newpass',
-    });
-    // transaction fn is called; updateWithAssignments receives hashed password
-    expect(db.$transaction).toHaveBeenCalled();
   });
 });
 
@@ -199,24 +252,40 @@ describe('UserService.update', () => {
 
 describe('UserService.delete', () => {
   let repo: Repo;
+  let db: Db;
+  let auditSvc: ReturnType<typeof makeAuditSvc>;
   let svc: UserService;
 
   beforeEach(() => {
     repo = makeRepo();
-    svc = new UserService(repo as any, makeDb() as any);
+    db = makeDb();
+    auditSvc = makeAuditSvc();
+    svc = new UserService(repo as any, db as any, auditSvc as any);
   });
 
-  it('calls softDelete when user exists', async () => {
-    repo.findById.mockResolvedValue({ userId: 5 });
-    repo.softDelete.mockResolvedValue({});
-    await svc.delete(5);
-    expect(repo.softDelete).toHaveBeenCalledWith(5);
+  it('wraps delete in transaction and records audit', async () => {
+    repo.findById.mockResolvedValue({
+      userId: 5,
+      email: 'a@b.com',
+      role: 'DeptAdmin',
+      isActive: true,
+    });
+    await svc.delete(5, CTX);
+    expect(db.$transaction).toHaveBeenCalled();
+    expect(auditSvc.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'user.delete',
+        newJson: null,
+        changedByUserId: CTX.userId,
+      }),
+      expect.anything(),
+    );
   });
 
   it('throws UserNotFoundError when user missing', async () => {
     repo.findById.mockResolvedValue(null);
-    await expect(svc.delete(99)).rejects.toThrow(UserNotFoundError);
-    expect(repo.softDelete).not.toHaveBeenCalled();
+    await expect(svc.delete(99, CTX)).rejects.toThrow(UserNotFoundError);
+    expect(db.$transaction).not.toHaveBeenCalled();
   });
 });
 
@@ -224,26 +293,38 @@ describe('UserService.delete', () => {
 
 describe('UserService.resetPassword', () => {
   let repo: Repo;
+  let db: Db;
+  let auditSvc: ReturnType<typeof makeAuditSvc>;
   let svc: UserService;
 
   beforeEach(() => {
     repo = makeRepo();
-    svc = new UserService(repo as any, makeDb() as any);
+    db = makeDb();
+    auditSvc = makeAuditSvc();
+    svc = new UserService(repo as any, db as any, auditSvc as any);
   });
 
-  it('hashes password and updates user', async () => {
+  it('wraps password reset in transaction and records audit', async () => {
     repo.findById.mockResolvedValue({ userId: 3 });
-    repo.update.mockResolvedValue({});
-    await svc.resetPassword(3, 'newpassword');
-    expect(repo.update).toHaveBeenCalledWith(
-      3,
-      expect.objectContaining({ passwordHash: 'hashed-pw', mustChangePassword: true }),
+    await svc.resetPassword(3, 'newpassword', CTX);
+    expect(db.$transaction).toHaveBeenCalled();
+    expect(auditSvc.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'user.password-reset',
+        oldJson: null,
+        changedByUserId: CTX.userId,
+      }),
+      expect.anything(),
     );
+    const recorded = auditSvc.record.mock.calls[0]![0];
+    const newJsonParsed = JSON.parse(recorded.newJson);
+    expect(newJsonParsed.userId).toBe(3);
+    expect(newJsonParsed.resetAt).toBeDefined();
   });
 
   it('throws UserNotFoundError for unknown id', async () => {
     repo.findById.mockResolvedValue(null);
-    await expect(svc.resetPassword(99, 'pw')).rejects.toThrow(UserNotFoundError);
-    expect(repo.update).not.toHaveBeenCalled();
+    await expect(svc.resetPassword(99, 'pw', CTX)).rejects.toThrow(UserNotFoundError);
+    expect(db.$transaction).not.toHaveBeenCalled();
   });
 });

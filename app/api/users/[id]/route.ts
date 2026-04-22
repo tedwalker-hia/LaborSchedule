@@ -6,6 +6,7 @@ import { makeUserService } from '@/lib/services/user-service';
 import { mapErrorResponse } from '@/lib/http/map-error';
 import type { UserDetailRow } from '@/lib/repositories/users-repo';
 import { UpdateUserBodySchema } from '@/lib/schemas/user';
+import type { AuditCtx } from '@/lib/services/audit-service';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -83,16 +84,12 @@ export async function PUT(req: NextRequest, context: RouteContext) {
       );
     }
 
-    const updated = await svc.update(targetId, {
-      firstName,
-      lastName,
-      email,
-      password,
-      role,
-      tenants,
-      hotels,
-      departments,
-    });
+    const ctx: AuditCtx = { userId: currentUserId, source: 'api' };
+    const updated = await svc.update(
+      targetId,
+      { firstName, lastName, email, password, role, tenants, hotels, departments },
+      ctx,
+    );
     return NextResponse.json(updated);
   } catch (err) {
     return mapErrorResponse(err, 'PUT /api/users/[id] error');
@@ -129,7 +126,8 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
       );
     }
 
-    await svc.delete(targetId);
+    const ctx: AuditCtx = { userId: currentUserId, source: 'api' };
+    await svc.delete(targetId, ctx);
     return NextResponse.json({ success: true });
   } catch (err) {
     return mapErrorResponse(err, 'DELETE /api/users/[id] error');

@@ -1,13 +1,19 @@
+import { Prisma } from '@prisma/client';
 import { AuditRepo, InsertAuditRow, makeAuditRepo } from '../repositories/audit-repo';
+
+export interface AuditCtx {
+  userId: number;
+  source: 'api' | 'worker';
+}
 
 export type RecordArgs = InsertAuditRow;
 
 export class AuditService {
   constructor(private readonly repo: AuditRepo) {}
 
-  // Phase 8 threads this through all mutating services.
-  async record(_args: RecordArgs): Promise<void> {
-    // no-op stub
+  async record(args: RecordArgs, tx?: Prisma.TransactionClient): Promise<void> {
+    const repo = tx ? makeAuditRepo(tx) : this.repo;
+    await repo.insert(args);
   }
 }
 

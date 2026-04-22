@@ -9,20 +9,43 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PrismaClient } from '@prisma/client';
 import { UserService, UserNotFoundError, EmailConflictError } from '@/lib/services/user-service';
 import { makeUsersRepo } from '@/lib/repositories/users-repo';
+import { makeAuditService } from '@/lib/services/audit-service';
+import { makeAuditRepo } from '@/lib/repositories/audit-repo';
+import type { AuditCtx } from '@/lib/services/audit-service';
 
 const EMAIL_DOMAIN = '@inttest-usr.local';
 
+let CTX: AuditCtx;
+let fixtureUserId: number;
 let prisma: PrismaClient;
 let svc: UserService;
 
-beforeAll(() => {
+beforeAll(async () => {
   prisma = new PrismaClient();
+  const fixtureUser = await prisma.user.create({
+    data: {
+      firstName: 'Fixture',
+      lastName: 'Admin',
+      email: 'fixture-admin@inttest-admin.local',
+      role: 'HotelAdmin',
+      passwordHash: null,
+      mustChangePassword: false,
+      isActive: true,
+    },
+  });
+  fixtureUserId = fixtureUser.userId;
+  CTX = { userId: fixtureUserId, source: 'api' };
+
   const repo = makeUsersRepo(prisma as any);
-  svc = new UserService(repo, prisma);
+  const auditService = makeAuditService(makeAuditRepo(prisma as any));
+  svc = new UserService(repo, prisma, auditService);
 });
 
 afterAll(async () => {
+  // Delete audit rows before deleting fixture user (prevents changedByUserId nulling via SetNull).
+  await prisma.laborScheduleAudit.deleteMany({ where: { changedByUserId: fixtureUserId } });
   await prisma.user.deleteMany({ where: { email: { endsWith: EMAIL_DOMAIN } } });
+  await prisma.user.deleteMany({ where: { email: 'fixture-admin@inttest-admin.local' } });
   await prisma.$disconnect();
 });
 
@@ -30,13 +53,16 @@ afterAll(async () => {
 
 describe('UserService.create', () => {
   it('inserts a new user and returns the created row', async () => {
-    const user = await svc.create({
-      firstName: 'Alice',
-      lastName: 'Int',
-      email: `alice${EMAIL_DOMAIN}`,
-      password: 'Test@1234',
-      role: 'HotelAdmin',
-    });
+    const user = await svc.create(
+      {
+        firstName: 'Alice',
+        lastName: 'Int',
+        email: `alice${EMAIL_DOMAIN}`,
+        password: 'Test@1234',
+        role: 'HotelAdmin',
+      },
+      CTX,
+    );
 
     expect(user.userId).toBeGreaterThan(0);
     expect(user.email).toBe(`alice${EMAIL_DOMAIN}`);
@@ -45,35 +71,32 @@ describe('UserService.create', () => {
   });
 
   it('stores email in lowercase', async () => {
-    const user = await svc.create({
-      firstName: 'Bob',
-      lastName: 'Int',
-      email: `Bob.Case${EMAIL_DOMAIN}`,
-      password: 'Test@1234',
-      role: 'DeptAdmin',
-    });
+    const user = await svc.create(
+      {
+        firstName: 'Bob',
+        lastName: 'Int',
+        email: `Bob.Case${EMAIL_DOMAIN}`,
+        password: 'Test@1234',
+        role: 'DeptAdmin',
+      },
+      CTX,
+    );
 
     expect(user.email).toBe(`bob.case${EMAIL_DOMAIN}`);
   });
 
   it('throws EmailConflictError when email already exists', async () => {
     const email = `carol${EMAIL_DOMAIN}`;
-    await svc.create({
-      firstName: 'Carol',
-      lastName: 'Int',
-      email,
-      password: 'Test@1234',
-      role: 'HotelAdmin',
-    });
+    await svc.create(
+      { firstName: 'Carol', lastName: 'Int', email, password: 'Test@1234', role: 'HotelAdmin' },
+      CTX,
+    );
 
     await expect(
-      svc.create({
-        firstName: 'Carol2',
-        lastName: 'Int',
-        email,
-        password: 'Test@5678',
-        role: 'DeptAdmin',
-      }),
+      svc.create(
+        { firstName: 'Carol2', lastName: 'Int', email, password: 'Test@5678', role: 'DeptAdmin' },
+        CTX,
+      ),
     ).rejects.toThrow(EmailConflictError);
   });
 });
@@ -82,13 +105,16 @@ describe('UserService.create', () => {
 
 describe('UserService.get', () => {
   it('returns user detail for a valid userId', async () => {
-    const created = await svc.create({
-      firstName: 'Dave',
-      lastName: 'Int',
-      email: `dave${EMAIL_DOMAIN}`,
-      password: 'Test@1234',
-      role: 'CompanyAdmin',
-    });
+    const created = await svc.create(
+      {
+        firstName: 'Dave',
+        lastName: 'Int',
+        email: `dave${EMAIL_DOMAIN}`,
+        password: 'Test@1234',
+        role: 'CompanyAdmin',
+      },
+      CTX,
+    );
 
     const detail = await svc.get(created.userId);
     expect(detail.userId).toBe(created.userId);
@@ -105,21 +131,28 @@ describe('UserService.get', () => {
 
 describe('UserService.update', () => {
   it('updates user fields and assignment arrays', async () => {
-    const created = await svc.create({
-      firstName: 'Eve',
-      lastName: 'Int',
-      email: `eve${EMAIL_DOMAIN}`,
-      password: 'Test@1234',
-      role: 'DeptAdmin',
-    });
+    const created = await svc.create(
+      {
+        firstName: 'Eve',
+        lastName: 'Int',
+        email: `eve${EMAIL_DOMAIN}`,
+        password: 'Test@1234',
+        role: 'DeptAdmin',
+      },
+      CTX,
+    );
 
-    const updated = await svc.update(created.userId, {
-      firstName: 'Eve2',
-      lastName: 'Int2',
-      email: `eve${EMAIL_DOMAIN}`,
-      role: 'HotelAdmin',
-      tenants: ['TenantA'],
-    });
+    const updated = await svc.update(
+      created.userId,
+      {
+        firstName: 'Eve2',
+        lastName: 'Int2',
+        email: `eve${EMAIL_DOMAIN}`,
+        role: 'HotelAdmin',
+        tenants: ['TenantA'],
+      },
+      CTX,
+    );
 
     expect(updated.firstName).toBe('Eve2');
     expect(updated.role).toBe('HotelAdmin');
@@ -128,12 +161,11 @@ describe('UserService.update', () => {
 
   it('throws UserNotFoundError when updating non-existent user', async () => {
     await expect(
-      svc.update(999_999_999, {
-        firstName: 'X',
-        lastName: 'X',
-        email: `x${EMAIL_DOMAIN}`,
-        role: 'DeptAdmin',
-      }),
+      svc.update(
+        999_999_999,
+        { firstName: 'X', lastName: 'X', email: `x${EMAIL_DOMAIN}`, role: 'DeptAdmin' },
+        CTX,
+      ),
     ).rejects.toThrow(UserNotFoundError);
   });
 });
@@ -142,22 +174,25 @@ describe('UserService.update', () => {
 
 describe('UserService.delete', () => {
   it('marks user as inactive (soft delete)', async () => {
-    const created = await svc.create({
-      firstName: 'Frank',
-      lastName: 'Int',
-      email: `frank${EMAIL_DOMAIN}`,
-      password: 'Test@1234',
-      role: 'DeptAdmin',
-    });
+    const created = await svc.create(
+      {
+        firstName: 'Frank',
+        lastName: 'Int',
+        email: `frank${EMAIL_DOMAIN}`,
+        password: 'Test@1234',
+        role: 'DeptAdmin',
+      },
+      CTX,
+    );
 
-    await svc.delete(created.userId);
+    await svc.delete(created.userId, CTX);
 
     const raw = await prisma.user.findUnique({ where: { userId: created.userId } });
     expect(raw!.isActive).toBe(false);
   });
 
   it('throws UserNotFoundError for unknown userId', async () => {
-    await expect(svc.delete(999_999_999)).rejects.toThrow(UserNotFoundError);
+    await expect(svc.delete(999_999_999, CTX)).rejects.toThrow(UserNotFoundError);
   });
 });
 

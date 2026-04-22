@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GenerationService } from '@/lib/services/generation-service';
 import type { EmployeeHistory } from '@/lib/domain/types';
+import type { AuditCtx } from '@/lib/services/audit-service';
+
+const CTX: AuditCtx = { userId: 1, source: 'api' };
+
+const makeAuditSvc = () => ({ record: vi.fn().mockResolvedValue(undefined) });
 
 const makePayrollRepo = () => ({
   findPositionWindows: vi.fn(),
@@ -141,19 +146,22 @@ describe('GenerationService.generate', () => {
   beforeEach(() => {
     repo = makePayrollRepo();
     db = makeDb();
-    svc = new GenerationService(repo as any, db as any);
+    svc = new GenerationService(repo as any, db as any, makeAuditSvc() as any);
 
     // Default: no names, no locked records
     db.laborSchedule.findMany.mockResolvedValue([]);
   });
 
   it('returns zeros immediately when employeeCodes is empty', async () => {
-    const result = await svc.generate({
-      usrSystemCompanyId: 'CO1',
-      employeeCodes: [],
-      startDate: MONDAY,
-      endDate: MONDAY,
-    });
+    const result = await svc.generate(
+      {
+        usrSystemCompanyId: 'CO1',
+        employeeCodes: [],
+        startDate: MONDAY,
+        endDate: MONDAY,
+      },
+      CTX,
+    );
     expect(result).toEqual({ inserted: 0, skipped: 0, skippedEmployees: [] });
     expect(repo.findPositionWindows).not.toHaveBeenCalled();
   });
@@ -172,12 +180,15 @@ describe('GenerationService.generate', () => {
       ]),
     );
 
-    await svc.generate({
-      usrSystemCompanyId: 'CO1',
-      employeeCodes: ['E001', 'E002'],
-      startDate: MONDAY,
-      endDate: MONDAY,
-    });
+    await svc.generate(
+      {
+        usrSystemCompanyId: 'CO1',
+        employeeCodes: ['E001', 'E002'],
+        startDate: MONDAY,
+        endDate: MONDAY,
+      },
+      CTX,
+    );
 
     expect(repo.findPositionWindows).toHaveBeenCalledTimes(1);
     expect(repo.findPayrollWindows).toHaveBeenCalledTimes(1);
@@ -187,12 +198,15 @@ describe('GenerationService.generate', () => {
     repo.findPositionWindows.mockResolvedValue(new Map([['E001', []]]));
     repo.findPayrollWindows.mockResolvedValue(new Map([['E001', null]]));
 
-    const result = await svc.generate({
-      usrSystemCompanyId: 'CO1',
-      employeeCodes: ['E001'],
-      startDate: MONDAY,
-      endDate: MONDAY,
-    });
+    const result = await svc.generate(
+      {
+        usrSystemCompanyId: 'CO1',
+        employeeCodes: ['E001'],
+        startDate: MONDAY,
+        endDate: MONDAY,
+      },
+      CTX,
+    );
 
     expect(result.skippedEmployees).toContain('E001');
     expect(result.inserted).toBe(0);
@@ -211,13 +225,16 @@ describe('GenerationService.generate', () => {
       return Promise.resolve([]);
     });
 
-    const result = await svc.generate({
-      usrSystemCompanyId: 'CO1',
-      employeeCodes: ['E001'],
-      startDate: MONDAY,
-      endDate: MONDAY,
-      overwriteLocked: false,
-    });
+    const result = await svc.generate(
+      {
+        usrSystemCompanyId: 'CO1',
+        employeeCodes: ['E001'],
+        startDate: MONDAY,
+        endDate: MONDAY,
+        overwriteLocked: false,
+      },
+      CTX,
+    );
 
     expect(result.skipped).toBe(1);
     expect(result.inserted).toBe(0);
@@ -229,12 +246,15 @@ describe('GenerationService.generate', () => {
     repo.findPayrollWindows.mockResolvedValue(new Map([['E001', historyForDow(MON, 8)]]));
     db.laborSchedule.findMany.mockResolvedValue([]);
 
-    const result = await svc.generate({
-      usrSystemCompanyId: 'CO1',
-      employeeCodes: ['E001'],
-      startDate: MONDAY,
-      endDate: MONDAY,
-    });
+    const result = await svc.generate(
+      {
+        usrSystemCompanyId: 'CO1',
+        employeeCodes: ['E001'],
+        startDate: MONDAY,
+        endDate: MONDAY,
+      },
+      CTX,
+    );
 
     expect(result.inserted).toBe(1);
     expect(db.laborSchedule.create).toHaveBeenCalledTimes(1);
@@ -258,12 +278,15 @@ describe('GenerationService.generate', () => {
     repo.findPayrollWindows.mockResolvedValue(new Map([['E001', null]]));
     db.laborSchedule.findMany.mockResolvedValue([]);
 
-    const result = await svc.generate({
-      usrSystemCompanyId: 'CO1',
-      employeeCodes: ['E001'],
-      startDate: MONDAY,
-      endDate: MONDAY,
-    });
+    const result = await svc.generate(
+      {
+        usrSystemCompanyId: 'CO1',
+        employeeCodes: ['E001'],
+        startDate: MONDAY,
+        endDate: MONDAY,
+      },
+      CTX,
+    );
 
     expect(result.inserted).toBe(2);
     expect(db.laborSchedule.create).toHaveBeenCalledTimes(2);
@@ -278,12 +301,15 @@ describe('GenerationService.generate', () => {
     repo.findPayrollWindows.mockResolvedValue(new Map([['E001', history]]));
     db.laborSchedule.findMany.mockResolvedValue([]);
 
-    const result = await svc.generate({
-      usrSystemCompanyId: 'CO1',
-      employeeCodes: ['E001'],
-      startDate: MONDAY, // Monday
-      endDate: MONDAY,
-    });
+    const result = await svc.generate(
+      {
+        usrSystemCompanyId: 'CO1',
+        employeeCodes: ['E001'],
+        startDate: MONDAY, // Monday
+        endDate: MONDAY,
+      },
+      CTX,
+    );
 
     expect(result.inserted).toBe(0);
     expect(db.laborSchedule.create).not.toHaveBeenCalled();
@@ -302,12 +328,15 @@ describe('GenerationService.generate', () => {
     repo.findPayrollWindows.mockResolvedValue(new Map([['E001', history]]));
     db.laborSchedule.findMany.mockResolvedValue([]);
 
-    const result = await svc.generate({
-      usrSystemCompanyId: 'CO1',
-      employeeCodes: ['E001'],
-      startDate: '2024-01-01', // Monday
-      endDate: '2024-01-02', // Tuesday
-    });
+    const result = await svc.generate(
+      {
+        usrSystemCompanyId: 'CO1',
+        employeeCodes: ['E001'],
+        startDate: '2024-01-01', // Monday
+        endDate: '2024-01-02', // Tuesday
+      },
+      CTX,
+    );
 
     expect(result.inserted).toBe(2);
   });
@@ -321,12 +350,15 @@ describe('GenerationService.generate', () => {
       return Promise.resolve([{ employeeCode: 'E001', firstName: 'Bob', lastName: 'Jones' }]);
     });
 
-    await svc.generate({
-      usrSystemCompanyId: 'CO1',
-      employeeCodes: ['E001'],
-      startDate: MONDAY,
-      endDate: MONDAY,
-    });
+    await svc.generate(
+      {
+        usrSystemCompanyId: 'CO1',
+        employeeCodes: ['E001'],
+        startDate: MONDAY,
+        endDate: MONDAY,
+      },
+      CTX,
+    );
 
     const data = db.laborSchedule.create.mock.calls[0]![0].data;
     expect(data.firstName).toBe('Bob');

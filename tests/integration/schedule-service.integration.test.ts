@@ -11,21 +11,46 @@ import { PrismaClient } from '@prisma/client';
 import { ScheduleService, DuplicateScheduleError } from '@/lib/services/schedule-service';
 import { makeSchedulesRepo } from '@/lib/repositories/schedules-repo';
 import { makePayrollRepo } from '@/lib/repositories/payroll-repo';
+import { makeAuditService } from '@/lib/services/audit-service';
+import { makeAuditRepo } from '@/lib/repositories/audit-repo';
+import type { AuditCtx } from '@/lib/services/audit-service';
 
 const COMPANY = 'INTTEST_SCH';
 
+let CTX: AuditCtx;
+let fixtureUserId: number;
 let prisma: PrismaClient;
 let svc: ScheduleService;
 
-beforeAll(() => {
+beforeAll(async () => {
   prisma = new PrismaClient();
+  const fixtureUser = await prisma.user.create({
+    data: {
+      firstName: 'Fixture',
+      lastName: 'Sched',
+      email: 'fixture-sched@inttest-sch.local',
+      role: 'HotelAdmin',
+      passwordHash: null,
+      mustChangePassword: false,
+      isActive: true,
+    },
+  });
+  fixtureUserId = fixtureUser.userId;
+  CTX = { userId: fixtureUserId, source: 'api' };
+
   const repo = makeSchedulesRepo(prisma as any);
   const payrollRepo = makePayrollRepo(prisma as any);
-  svc = new ScheduleService(repo, prisma, payrollRepo);
+  const auditService = makeAuditService(makeAuditRepo(prisma as any));
+  svc = new ScheduleService(repo, prisma, payrollRepo, auditService);
 });
 
 afterAll(async () => {
+  await prisma.laborScheduleAudit.deleteMany({ where: { changedByUserId: fixtureUserId } });
+  await prisma.laborScheduleAudit.deleteMany({
+    where: { schedule: { usrSystemCompanyId: COMPANY } },
+  });
   await prisma.laborSchedule.deleteMany({ where: { usrSystemCompanyId: COMPANY } });
+  await prisma.user.deleteMany({ where: { email: 'fixture-sched@inttest-sch.local' } });
   await prisma.$disconnect();
 });
 
@@ -33,13 +58,16 @@ afterAll(async () => {
 
 describe('ScheduleService.save', () => {
   it('inserts a new record and persists to DB', async () => {
-    const result = await svc.save({
-      usrSystemCompanyId: COMPANY,
-      hotel: 'Test Hotel',
-      changes: [
-        { employeeCode: 'ESCH01', date: '2025-03-01', clockIn: '8:00 AM', clockOut: '4:00 PM' },
-      ],
-    });
+    const result = await svc.save(
+      {
+        usrSystemCompanyId: COMPANY,
+        hotel: 'Test Hotel',
+        changes: [
+          { employeeCode: 'ESCH01', date: '2025-03-01', clockIn: '8:00 AM', clockOut: '4:00 PM' },
+        ],
+      },
+      CTX,
+    );
 
     expect(result).toEqual({ inserted: 1, updated: 0, skipped: 0 });
 
@@ -63,12 +91,15 @@ describe('ScheduleService.save', () => {
       },
     });
 
-    const result = await svc.save({
-      usrSystemCompanyId: COMPANY,
-      changes: [
-        { employeeCode: 'ESCH02', date: '2025-03-02', clockIn: '8:00 AM', clockOut: '4:00 PM' },
-      ],
-    });
+    const result = await svc.save(
+      {
+        usrSystemCompanyId: COMPANY,
+        changes: [
+          { employeeCode: 'ESCH02', date: '2025-03-02', clockIn: '8:00 AM', clockOut: '4:00 PM' },
+        ],
+      },
+      CTX,
+    );
 
     expect(result).toEqual({ inserted: 0, updated: 1, skipped: 0 });
 
@@ -91,12 +122,15 @@ describe('ScheduleService.save', () => {
       },
     });
 
-    const result = await svc.save({
-      usrSystemCompanyId: COMPANY,
-      changes: [
-        { employeeCode: 'ESCH03', date: '2025-03-03', clockIn: '9:00 AM', clockOut: '5:00 PM' },
-      ],
-    });
+    const result = await svc.save(
+      {
+        usrSystemCompanyId: COMPANY,
+        changes: [
+          { employeeCode: 'ESCH03', date: '2025-03-03', clockIn: '9:00 AM', clockOut: '5:00 PM' },
+        ],
+      },
+      CTX,
+    );
 
     expect(result).toEqual({ inserted: 0, updated: 0, skipped: 1 });
   });
@@ -118,13 +152,16 @@ describe('ScheduleService.save', () => {
     });
 
     await expect(
-      svc.save({
-        usrSystemCompanyId: COMPANY,
-        changes: [
-          { employeeCode: 'ESCH04', date: '2025-03-04', clockIn: '8:00 AM', clockOut: '4:00 PM' },
-          { employeeCode: 'ESCH04', date: '2025-03-04', clockIn: '9:00 AM', clockOut: '5:00 PM' },
-        ],
-      }),
+      svc.save(
+        {
+          usrSystemCompanyId: COMPANY,
+          changes: [
+            { employeeCode: 'ESCH04', date: '2025-03-04', clockIn: '8:00 AM', clockOut: '4:00 PM' },
+            { employeeCode: 'ESCH04', date: '2025-03-04', clockIn: '9:00 AM', clockOut: '5:00 PM' },
+          ],
+        },
+        CTX,
+      ),
     ).rejects.toThrow();
 
     // Original record should be restored by the rollback
@@ -141,15 +178,18 @@ describe('ScheduleService.save', () => {
 
 describe('ScheduleService.add', () => {
   it('inserts a locked record and returns its id', async () => {
-    const result = await svc.add({
-      usrSystemCompanyId: COMPANY,
-      employeeCode: 'ESCH10',
-      date: '2025-03-10',
-      clockIn: '8:00 AM',
-      clockOut: '4:00 PM',
-      deptName: 'Front Office',
-      positionName: 'Receptionist',
-    });
+    const result = await svc.add(
+      {
+        usrSystemCompanyId: COMPANY,
+        employeeCode: 'ESCH10',
+        date: '2025-03-10',
+        clockIn: '8:00 AM',
+        clockOut: '4:00 PM',
+        deptName: 'Front Office',
+        positionName: 'Receptionist',
+      },
+      CTX,
+    );
 
     expect(result.id).toBeGreaterThan(0);
 
@@ -161,21 +201,27 @@ describe('ScheduleService.add', () => {
 
   it('throws DuplicateScheduleError when same employee+date+position already exists', async () => {
     // Add once
-    await svc.add({
-      usrSystemCompanyId: COMPANY,
-      employeeCode: 'ESCH11',
-      date: '2025-03-11',
-      positionName: 'Manager',
-    });
-
-    // Add again with same key
-    await expect(
-      svc.add({
+    await svc.add(
+      {
         usrSystemCompanyId: COMPANY,
         employeeCode: 'ESCH11',
         date: '2025-03-11',
         positionName: 'Manager',
-      }),
+      },
+      CTX,
+    );
+
+    // Add again with same key
+    await expect(
+      svc.add(
+        {
+          usrSystemCompanyId: COMPANY,
+          employeeCode: 'ESCH11',
+          date: '2025-03-11',
+          positionName: 'Manager',
+        },
+        CTX,
+      ),
     ).rejects.toThrow(DuplicateScheduleError);
   });
 });
@@ -193,11 +239,14 @@ describe('ScheduleService.lock', () => {
       },
     });
 
-    const result = await svc.lock({
-      usrSystemCompanyId: COMPANY,
-      records: [{ employeeCode: 'ESCH20', date: '2025-03-20' }],
-      locked: true,
-    });
+    const result = await svc.lock(
+      {
+        usrSystemCompanyId: COMPANY,
+        records: [{ employeeCode: 'ESCH20', date: '2025-03-20' }],
+        locked: true,
+      },
+      CTX,
+    );
 
     expect(result.updated).toBe(1);
 
@@ -231,13 +280,16 @@ describe('ScheduleService.clear', () => {
       }),
     ]);
 
-    const result = await svc.clear({
-      usrSystemCompanyId: COMPANY,
-      employeeCodes: ['ESCH30'],
-      startDate: '2025-03-30',
-      endDate: '2025-03-31',
-      clearLocked: false,
-    });
+    const result = await svc.clear(
+      {
+        usrSystemCompanyId: COMPANY,
+        employeeCodes: ['ESCH30'],
+        startDate: '2025-03-30',
+        endDate: '2025-03-31',
+        clearLocked: false,
+      },
+      CTX,
+    );
 
     expect(result.deleted).toBe(1);
     expect(result.lockedSkipped).toBe(1);
@@ -272,12 +324,15 @@ describe('ScheduleService.delete', () => {
       }),
     ]);
 
-    const result = await svc.delete({
-      usrSystemCompanyId: COMPANY,
-      employeeCodes: ['ESCH40'],
-      startDate: '2025-04-01',
-      endDate: '2025-04-02',
-    });
+    const result = await svc.delete(
+      {
+        usrSystemCompanyId: COMPANY,
+        employeeCodes: ['ESCH40'],
+        startDate: '2025-04-01',
+        endDate: '2025-04-02',
+      },
+      CTX,
+    );
 
     expect(result.deleted).toBe(2);
 

@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const svc = makeGenerationService();
-    const result = await svc.generate(parsed.data);
+    const result = await svc.generate(parsed.data, { userId: user.userId, source: 'api' });
     return NextResponse.json(result);
   } catch (error) {
     return mapErrorResponse(error, 'Schedule generate error');

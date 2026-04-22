@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 
 export interface InsertAuditRow {
-  scheduleId: number;
+  scheduleId?: number | null;
   changedByUserId?: number | null;
   action: string;
   oldJson?: string | null;
@@ -13,7 +13,7 @@ export class AuditRepo {
   constructor(private readonly db: Prisma.TransactionClient = prisma) {}
 
   async insert(row: InsertAuditRow) {
-    return this.db.laborScheduleAudit.create({ data: row });
+    return this.db.laborScheduleAudit.create({ data: row as any });
   }
 }
 

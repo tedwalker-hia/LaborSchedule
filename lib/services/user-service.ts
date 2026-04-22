@@ -8,7 +8,15 @@ import {
   type UserDetailRow,
   type UpdateUserFields,
 } from '../repositories/users-repo';
+import { AuditService, AuditCtx, makeAuditService } from './audit-service';
 import type { Role } from '../auth/rbac';
+
+function redactUser(user: object): Record<string, unknown> {
+  const copy = { ...(user as Record<string, unknown>) };
+  delete copy['passwordHash'];
+  delete copy['password'];
+  return copy;
+}
 
 export class UserNotFoundError extends Error {
   readonly statusHint = 404;
@@ -72,6 +80,7 @@ export class UserService {
   constructor(
     private readonly repo: UsersRepo,
     private readonly db: PrismaClient = prisma,
+    private readonly auditService: AuditService = makeAuditService(),
   ) {}
 
   async list(scope: UserScope): Promise<UserListRow[]> {
@@ -117,27 +126,40 @@ export class UserService {
     return user;
   }
 
-  async create(input: CreateUserInput): Promise<UserListRow> {
+  async create(input: CreateUserInput, ctx: AuditCtx): Promise<UserListRow> {
     const existing = await this.repo.findFirst({ email: input.email.toLowerCase() });
     if (existing) throw new EmailConflictError();
 
     const passwordHash = await bcrypt.hash(input.password, 10);
 
-    return this.repo.create({
-      firstName: input.firstName,
-      lastName: input.lastName,
-      email: input.email.toLowerCase(),
-      role: input.role,
-      passwordHash,
-      mustChangePassword: true,
-      isActive: true,
-      tenants: input.tenants ?? [],
-      hotels: input.hotels ?? [],
-      departments: input.departments ?? [],
+    return this.db.$transaction(async (tx) => {
+      const txRepo = makeUsersRepo(tx);
+      const user = await txRepo.create({
+        firstName: input.firstName,
+        lastName: input.lastName,
+        email: input.email.toLowerCase(),
+        role: input.role,
+        passwordHash,
+        mustChangePassword: true,
+        isActive: true,
+        tenants: input.tenants ?? [],
+        hotels: input.hotels ?? [],
+        departments: input.departments ?? [],
+      });
+      await this.auditService.record(
+        {
+          changedByUserId: ctx.userId,
+          action: 'user.create',
+          oldJson: null,
+          newJson: JSON.stringify(redactUser(user)),
+        },
+        tx,
+      );
+      return user;
     });
   }
 
-  async update(userId: number, input: UpdateUserInput): Promise<UserListRow> {
+  async update(userId: number, input: UpdateUserInput, ctx: AuditCtx): Promise<UserListRow> {
     const existing = await this.repo.findById(userId);
     if (!existing) throw new UserNotFoundError(userId);
 
@@ -168,25 +190,57 @@ export class UserService {
 
     return this.db.$transaction(async (tx) => {
       const txRepo = makeUsersRepo(tx);
-      return txRepo.updateWithAssignments(userId, fields, assignments);
+      const updated = await txRepo.updateWithAssignments(userId, fields, assignments);
+      await this.auditService.record(
+        {
+          changedByUserId: ctx.userId,
+          action: 'user.update',
+          oldJson: JSON.stringify(redactUser(existing)),
+          newJson: JSON.stringify(redactUser(updated)),
+        },
+        tx,
+      );
+      return updated;
     });
   }
 
-  async delete(userId: number): Promise<void> {
+  async delete(userId: number, ctx: AuditCtx): Promise<void> {
     const existing = await this.repo.findById(userId);
     if (!existing) throw new UserNotFoundError(userId);
-    await this.repo.softDelete(userId);
+    await this.db.$transaction(async (tx) => {
+      await tx.user.update({ where: { userId }, data: { isActive: false, updatedAt: new Date() } });
+      await this.auditService.record(
+        {
+          changedByUserId: ctx.userId,
+          action: 'user.delete',
+          oldJson: JSON.stringify(redactUser(existing)),
+          newJson: null,
+        },
+        tx,
+      );
+    });
   }
 
-  async resetPassword(userId: number, newPassword: string): Promise<void> {
+  async resetPassword(userId: number, newPassword: string, ctx: AuditCtx): Promise<void> {
     const existing = await this.repo.findById(userId);
     if (!existing) throw new UserNotFoundError(userId);
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
-    await this.repo.update(userId, {
-      passwordHash,
-      mustChangePassword: true,
-      updatedAt: new Date(),
+    const resetAt = new Date().toISOString();
+    await this.db.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { userId },
+        data: { passwordHash, mustChangePassword: true, updatedAt: new Date() },
+      });
+      await this.auditService.record(
+        {
+          changedByUserId: ctx.userId,
+          action: 'user.password-reset',
+          oldJson: null,
+          newJson: JSON.stringify({ userId, resetAt }),
+        },
+        tx,
+      );
     });
   }
 }
@@ -194,6 +248,7 @@ export class UserService {
 export function makeUserService(
   repo: UsersRepo = makeUsersRepo(),
   db: PrismaClient = prisma,
+  auditService: AuditService = makeAuditService(),
 ): UserService {
-  return new UserService(repo, db);
+  return new UserService(repo, db, auditService);
 }
