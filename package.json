@@ -14,7 +14,14 @@
     "studio": "prisma studio",
     "verify:dockerfile": "bash scripts/verify-no-baked-migrations.sh",
     "db:dedupe-audit": "bash scripts/run-dedupe-decision.sh",
-    "db:baseline-resolve": "bash scripts/baseline-resolve.sh"
+    "db:baseline-resolve": "bash scripts/baseline-resolve.sh",
+    "spike:data-validation": "node --experimental-strip-types tests/spikes/excel-data-validation.ts",
+    "spike:timevalue": "node --experimental-strip-types tests/spikes/excel-timevalue.ts",
+    "spike:sheet-protection": "node --experimental-strip-types tests/spikes/excel-sheet-protection.ts",
+    "spike:frozen-panes": "node --experimental-strip-types tests/spikes/excel-frozen-panes.ts",
+    "spike:named-ranges": "node --experimental-strip-types tests/spikes/excel-named-ranges.ts",
+    "spike:conditional-formatting": "node --experimental-strip-types tests/spikes/excel-conditional-formatting.ts",
+    "check:excel-verdict": "node --experimental-strip-types scripts/check-excel-verdict.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.15.0",
