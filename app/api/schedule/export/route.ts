@@ -19,10 +19,10 @@ export async function GET(request: NextRequest) {
 
     const today = new Date();
     const startDate = startDateStr
-      ? new Date(startDateStr + 'T00:00:00')
+      ? new Date(startDateStr + 'T00:00:00Z')
       : new Date(today.getTime() - 7 * 86400000);
     const endDate = endDateStr
-      ? new Date(endDateStr + 'T00:00:00')
+      ? new Date(endDateStr + 'T00:00:00Z')
       : new Date(today.getTime() + 7 * 86400000);
 
     // Build date list

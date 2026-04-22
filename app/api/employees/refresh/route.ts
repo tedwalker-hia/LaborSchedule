@@ -1,14 +1,15 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { makeScheduleService } from '@/lib/services/schedule-service';
+import { mapErrorResponse } from '@/lib/http/map-error';
 
 export async function POST(request: NextRequest) {
-  try {
-    const userId = request.headers.get('x-user-id');
-    if (!userId) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
+  const userId = request.headers.get('x-user-id');
+  if (!userId) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
 
+  try {
     const { usrSystemCompanyId, hotelName, branchId, tenant, newEmployees, removedCodes } =
       await request.json();
 
@@ -16,47 +17,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    let added = 0;
-    let removed = 0;
+    const svc = makeScheduleService();
+    const result = await svc.refreshRoster({
+      usrSystemCompanyId,
+      hotelName,
+      branchId,
+      tenant,
+      newEmployees: Array.isArray(newEmployees) ? newEmployees : [],
+      removedCodes: Array.isArray(removedCodes) ? removedCodes : [],
+    });
 
-    // Add new employees with placeholder records (today's date, no clock times)
-    if (Array.isArray(newEmployees)) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      for (const emp of newEmployees) {
-        await prisma.laborSchedule.create({
-          data: {
-            usrSystemCompanyId,
-            branchId,
-            hotelName,
-            employeeCode: emp.code,
-            firstName: emp.firstName,
-            lastName: emp.lastName,
-            scheduleDate: today,
-            deptName: emp.deptName || null,
-            positionName: emp.positionName || null,
-            tenant,
-          },
-        });
-        added++;
-      }
-    }
-
-    // Remove employees (delete all their records)
-    if (Array.isArray(removedCodes) && removedCodes.length > 0) {
-      const result = await prisma.laborSchedule.deleteMany({
-        where: {
-          usrSystemCompanyId,
-          employeeCode: { in: removedCodes },
-        },
-      });
-      removed = result.count;
-    }
-
-    return NextResponse.json({ added, removed });
+    return NextResponse.json(result);
   } catch (error) {
-    console.error('Refresh error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return mapErrorResponse(error, 'Refresh error');
   }
 }

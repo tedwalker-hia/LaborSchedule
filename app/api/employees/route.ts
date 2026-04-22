@@ -1,14 +1,15 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { makeScheduleService } from '@/lib/services/schedule-service';
+import { mapErrorResponse } from '@/lib/http/map-error';
 
 export async function GET(request: NextRequest) {
-  try {
-    const userId = request.headers.get('x-user-id');
-    if (!userId) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
+  const userId = request.headers.get('x-user-id');
+  if (!userId) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
 
+  try {
     const { searchParams } = new URL(request.url);
     const hotel = searchParams.get('hotel');
     const usrSystemCompanyId = searchParams.get('usrSystemCompanyId');
@@ -20,24 +21,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const rows = await prisma.laborSchedule.groupBy({
-      by: ['employeeCode', 'firstName', 'lastName'],
-      where: {
-        hotelName: hotel,
-        usrSystemCompanyId,
-      },
-      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
-    });
-
-    const employees = rows.map((r) => ({
-      employeeCode: r.employeeCode,
-      firstName: r.firstName,
-      lastName: r.lastName,
-    }));
-
+    const svc = makeScheduleService();
+    const employees = await svc.listRosterEmployees({ usrSystemCompanyId, hotelName: hotel });
     return NextResponse.json(employees);
   } catch (error) {
-    console.error('Employees API error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return mapErrorResponse(error, 'Employees API error');
   }
 }

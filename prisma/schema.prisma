@@ -36,6 +36,12 @@ model LaborSchedule {
   @@index([hotelName, scheduleDate], map: "IX_HIALaborSchedules_HotelSchedule")
   @@index([usrSystemCompanyId], map: "IX_HIALaborSchedules_UsrSystemCompanyID")
   @@index([tenant, hotelName, deptName], map: "IX_HIALaborSchedules_TenantHotelDept")
+  // Covering indexes for distinct/groupBy queries (migration 20260422060000)
+  @@index([usrSystemCompanyId, hotelName, deptName], map: "IX_HIALaborSchedules_CompanyHotelDept")
+  @@index([usrSystemCompanyId, hotelName, deptName, positionName], map: "IX_HIALaborSchedules_CompanyHotelDeptPosition")
+  @@index([usrSystemCompanyId, hotelName, employeeCode, firstName, lastName], map: "IX_HIALaborSchedules_CompanyHotelEmployee")
+  // IX_HIALaborSchedules_CompanyEmployee: (UsrSystemCompanyID, EmployeeCode) INCLUDE (FirstName, LastName, DeptName, PositionName)
+  // Defined in migration only — Prisma cannot express INCLUDE indexes.
   @@map("HIALaborSchedules")
 }
 

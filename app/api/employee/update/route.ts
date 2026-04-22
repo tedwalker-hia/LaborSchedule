@@ -1,14 +1,15 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { makeScheduleService } from '@/lib/services/schedule-service';
+import { mapErrorResponse } from '@/lib/http/map-error';
 
 export async function POST(request: NextRequest) {
-  try {
-    const userId = request.headers.get('x-user-id');
-    if (!userId) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
+  const userId = request.headers.get('x-user-id');
+  if (!userId) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
 
+  try {
     const {
       usrSystemCompanyId,
       employeeCode,
@@ -22,22 +23,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const result = await prisma.laborSchedule.updateMany({
-      where: {
-        usrSystemCompanyId,
-        employeeCode,
-        deptName: oldDeptName || null,
-        positionName: oldPositionName || null,
-      },
-      data: {
-        deptName: newDeptName || null,
-        positionName: newPositionName || null,
-      },
+    const svc = makeScheduleService();
+    const result = await svc.updateEmployeePlacement({
+      usrSystemCompanyId,
+      employeeCode,
+      oldDeptName,
+      oldPositionName,
+      newDeptName,
+      newPositionName,
     });
 
-    return NextResponse.json({ updated: result.count });
+    return NextResponse.json(result);
   } catch (error) {
-    console.error('Employee update error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return mapErrorResponse(error, 'Employee update error');
   }
 }

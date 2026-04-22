@@ -39,6 +39,7 @@ export default tseslint.config(
       '@typescript-eslint/consistent-type-imports': ['warn', { prefer: 'type-imports' }],
       // Existing noise to warn rather than error.
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-explicit-any': 'warn',
     },
   },
 );
