@@ -2,16 +2,14 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
-import { SignJWT } from 'jose';
-import { config } from '@/lib/config';
 import { ChangePasswordBodySchema } from '@/lib/schemas/user';
+import { sign, COOKIE_NAME, ABSOLUTE_TTL_S } from '@/lib/session';
 import logger from '@/lib/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const PASSWORD_PATTERN = /^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
-const JWT_SECRET = new TextEncoder().encode(config.JWT_SECRET);
 
 export async function POST(request: NextRequest) {
   try {
@@ -67,26 +65,22 @@ export async function POST(request: NextRequest) {
     });
 
     // Issue a fresh JWT without mustChangePassword
-    const token = await new SignJWT({
+    const token = await sign({
       userId: user.userId,
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
       role: user.role,
       mustChangePassword: false,
-    })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setExpirationTime('7d')
-      .setIssuedAt()
-      .sign(JWT_SECRET);
+    });
 
     const response = NextResponse.json({ message: 'Password changed successfully.' });
 
-    response.cookies.set('auth-token', token, {
+    response.cookies.set(COOKIE_NAME, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60,
+      maxAge: ABSOLUTE_TTL_S,
       path: '/',
     });
 

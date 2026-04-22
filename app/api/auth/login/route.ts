@@ -1,17 +1,14 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { SignJWT } from 'jose';
-import { config } from '@/lib/config';
 import { LoginBodySchema } from '@/lib/schemas/user';
 import { checkLogin } from '@/lib/rate-limit';
 import { verify, hash, needsUpgrade } from '@/lib/auth/hash';
+import { sign, COOKIE_NAME, ABSOLUTE_TTL_S } from '@/lib/session';
 import logger from '@/lib/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-const JWT_SECRET = new TextEncoder().encode(config.JWT_SECRET);
 
 function getClientIp(request: NextRequest): string {
   const forwarded = request.headers.get('x-forwarded-for');
@@ -69,18 +66,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const token = await new SignJWT({
+    const token = await sign({
       userId: user.userId,
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
       role: user.role,
       mustChangePassword: user.mustChangePassword,
-    })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setExpirationTime('7d')
-      .setIssuedAt()
-      .sign(JWT_SECRET);
+    });
 
     const response = NextResponse.json({
       message: 'Login successful',
@@ -94,11 +87,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    response.cookies.set('auth-token', token, {
+    response.cookies.set(COOKIE_NAME, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60,
+      maxAge: ABSOLUTE_TTL_S,
       path: '/',
     });
 

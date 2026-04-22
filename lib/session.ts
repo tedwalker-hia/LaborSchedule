@@ -54,6 +54,10 @@ export async function verify(token: string): Promise<VerifyResult> {
     const { payload } = await jwtVerify(token, JWT_SECRET);
     const p = payload as unknown as TokenPayload;
 
+    if (typeof p.issuedAt !== 'number' || typeof p.lastActivityAt !== 'number') {
+      return { ok: false, reason: 'invalid' };
+    }
+
     const now = Math.floor(Date.now() / 1000);
     if (now - p.lastActivityAt > IDLE_TIMEOUT_S) {
       return { ok: false, reason: 'idle' };

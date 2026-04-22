@@ -9,7 +9,6 @@ const PUBLIC_PATHS = new Set([
   '/change-password',
   '/api/auth/login',
   '/api/health',
-  '/api/auth/me',
   '/favicon.ico',
 ]);
 
