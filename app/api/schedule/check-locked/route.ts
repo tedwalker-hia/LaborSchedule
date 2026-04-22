@@ -3,14 +3,21 @@ import { NextResponse } from 'next/server';
 import { makeScheduleService } from '@/lib/services/schedule-service';
 import { mapErrorResponse } from '@/lib/http/map-error';
 import { CheckLockedBodySchema } from '@/lib/schemas/schedule';
+import { getCurrentUser } from '@/lib/auth/current-user';
+import { getUserPermissions } from '@/lib/auth/rbac';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
-  const userId = request.headers.get('x-user-id');
-  if (!userId) {
+  const user = getCurrentUser(request);
+  if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+
+  const perms = await getUserPermissions(user.userId);
+  if (!perms || !perms.hasScheduleAccess(null)) {
+    return NextResponse.json({ error: 'forbidden', missingScope: {} }, { status: 403 });
   }
 
   const parsed = CheckLockedBodySchema.safeParse(await request.json());

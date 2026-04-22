@@ -1,30 +1,38 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { makeGenerationService } from '@/lib/services/generation-service';
+import { mapErrorResponse } from '@/lib/http/map-error';
 import { GenerateBodySchema } from '@/lib/schemas/schedule';
-import logger from '@/lib/logger';
+import { getCurrentUser } from '@/lib/auth/current-user';
+import { getUserPermissions } from '@/lib/auth/rbac';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
+  const user = getCurrentUser(request);
+  if (!user) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+
+  const parsed = GenerateBodySchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return NextResponse.json({ issues: parsed.error.issues }, { status: 400 });
+  }
+
+  const perms = await getUserPermissions(user.userId);
+  if (!perms || !perms.hasScheduleAccess(parsed.data.hotel ?? null)) {
+    return NextResponse.json(
+      { error: 'forbidden', missingScope: { hotel: parsed.data.hotel } },
+      { status: 403 },
+    );
+  }
+
   try {
-    const userId = request.headers.get('x-user-id');
-    if (!userId) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-
-    const parsed = GenerateBodySchema.safeParse(await request.json());
-    if (!parsed.success) {
-      return NextResponse.json({ issues: parsed.error.issues }, { status: 400 });
-    }
-
     const svc = makeGenerationService();
     const result = await svc.generate(parsed.data);
-
     return NextResponse.json(result);
   } catch (error) {
-    logger.error({ err: error }, 'Schedule generate error');
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return mapErrorResponse(error, 'Schedule generate error');
   }
 }

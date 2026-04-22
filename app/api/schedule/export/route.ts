@@ -2,12 +2,19 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { exportScheduleToExcel } from '@/lib/excel-export';
+import { getCurrentUser } from '@/lib/auth/current-user';
+import { getUserPermissions } from '@/lib/auth/rbac';
 import logger from '@/lib/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
+  const user = getCurrentUser(request);
+  if (!user) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const hotel = searchParams.get('hotel') || '';
@@ -19,6 +26,11 @@ export async function GET(request: NextRequest) {
 
     if (!hotel || !usrSystemCompanyId) {
       return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
+    }
+
+    const perms = await getUserPermissions(user.userId);
+    if (!perms || !perms.hasScheduleAccess(hotel)) {
+      return NextResponse.json({ error: 'forbidden', missingScope: { hotel } }, { status: 403 });
     }
 
     const today = new Date();

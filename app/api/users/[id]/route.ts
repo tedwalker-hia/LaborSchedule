@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import type { Role } from '@/lib/permissions';
-import { getUserPermissions } from '@/lib/permissions';
+import type { Role } from '@/lib/auth/rbac';
+import { getUserPermissions } from '@/lib/auth/rbac';
 import { makeUserService } from '@/lib/services/user-service';
 import { mapErrorResponse } from '@/lib/http/map-error';
 import type { UserDetailRow } from '@/lib/repositories/users-repo';
@@ -143,17 +143,20 @@ function canCurrentUserSeeTarget(
   target: UserDetailRow,
 ): boolean {
   if (currentUserRole === 'CompanyAdmin') {
-    const accessibleTenants = perms.getAccessibleTenants();
+    const ts = perms.getAccessibleTenants();
+    if (ts.unlimited) return true;
     const targetTenants = [
       ...target.tenants.map((t) => t.tenant),
       ...target.hotels.map((h) => h.tenant),
       ...target.departments.map((d) => d.tenant),
     ];
-    return targetTenants.some((t) => accessibleTenants.includes(t));
+    return targetTenants.some((t) => ts.allowed.includes(t));
   }
 
   if (currentUserRole === 'HotelAdmin') {
-    const accessibleHotels = perms.getAccessibleHotels().map((h) => h.hotelName);
+    const hs = perms.getAccessibleHotels();
+    if (hs.unlimited) return true;
+    const accessibleHotels = hs.allowed.map((h) => h.hotelName);
     const targetHotels = [
       ...target.hotels.map((h) => h.hotelName),
       ...target.departments.map((d) => d.hotelName),
@@ -162,9 +165,10 @@ function canCurrentUserSeeTarget(
   }
 
   if (currentUserRole === 'DeptAdmin') {
-    const accessibleDepts = perms.getAccessibleDepts();
+    const ds = perms.getAccessibleDepts();
+    if (ds.unlimited) return true;
     return target.departments.some((d) =>
-      accessibleDepts.some((ad) => ad.hotelName === d.hotelName && ad.deptName === d.deptName),
+      ds.allowed.some((ad) => ad.hotelName === d.hotelName && ad.deptName === d.deptName),
     );
   }
 

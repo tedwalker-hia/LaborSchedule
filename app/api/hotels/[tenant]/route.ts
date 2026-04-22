@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getUserPermissions } from '@/lib/permissions';
+import { getUserPermissions } from '@/lib/auth/rbac';
 import logger from '@/lib/logger';
 
 export const runtime = 'nodejs';
@@ -43,8 +43,9 @@ export async function GET(
     }
 
     // Non-SuperAdmin: filter to assigned hotels
-    const accessibleHotels = checker.getAccessibleHotels();
-    const filteredHotels = accessibleHotels
+    const hs = checker.getAccessibleHotels();
+    if (hs.unlimited) return NextResponse.json([]); // unreachable: SuperAdmin handled above
+    const filteredHotels = hs.allowed
       .filter((h) => h.tenant === tenant)
       .map((h) => ({
         hotelName: h.hotelName,
@@ -55,8 +56,9 @@ export async function GET(
 
     // For DeptAdmin, derive hotels from department assignments
     if (role === 'DeptAdmin') {
-      const accessibleDepts = checker.getAccessibleDepts();
-      const deptHotelNames = [...new Set(accessibleDepts.map((d) => d.hotelName))];
+      const ds = checker.getAccessibleDepts();
+      if (ds.unlimited) return NextResponse.json([]); // DeptAdmin never unlimited; unreachable
+      const deptHotelNames = [...new Set(ds.allowed.map((d) => d.hotelName))];
 
       if (deptHotelNames.length > 0) {
         const rows = await prisma.laborSchedule.groupBy({

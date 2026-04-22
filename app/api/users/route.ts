@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import type { Role } from '@/lib/permissions';
-import { getUserPermissions } from '@/lib/permissions';
+import type { Role } from '@/lib/auth/rbac';
+import { getUserPermissions } from '@/lib/auth/rbac';
 import { makeUserService, type UserScope } from '@/lib/services/user-service';
 import { mapErrorResponse } from '@/lib/http/map-error';
 import { CreateUserBodySchema } from '@/lib/schemas/user';
@@ -28,11 +28,16 @@ export async function GET(req: NextRequest) {
     if (perms.isSuperAdmin()) {
       scope = { type: 'all' };
     } else if (currentUserRole === 'CompanyAdmin') {
-      scope = { type: 'byTenants', tenants: perms.getAccessibleTenants() };
+      const ts = perms.getAccessibleTenants();
+      scope = ts.unlimited ? { type: 'all' } : { type: 'byTenants', tenants: ts.allowed };
     } else if (currentUserRole === 'HotelAdmin') {
-      scope = { type: 'byHotels', hotels: perms.getAccessibleHotels().map((h) => h.hotelName) };
+      const hs = perms.getAccessibleHotels();
+      scope = hs.unlimited
+        ? { type: 'all' }
+        : { type: 'byHotels', hotels: hs.allowed.map((h) => h.hotelName) };
     } else if (currentUserRole === 'DeptAdmin') {
-      scope = { type: 'byDepts', departments: perms.getAccessibleDepts() };
+      const ds = perms.getAccessibleDepts();
+      scope = ds.unlimited ? { type: 'all' } : { type: 'byDepts', departments: ds.allowed };
     } else {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

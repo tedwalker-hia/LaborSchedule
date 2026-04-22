@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getUserPermissions } from '@/lib/permissions';
+import { getUserPermissions } from '@/lib/auth/rbac';
 import logger from '@/lib/logger';
 
 export const runtime = 'nodejs';
@@ -81,10 +81,17 @@ export async function GET(request: NextRequest) {
       if (!checker) {
         return NextResponse.json({ error: 'User not found' }, { status: 404 });
       }
-      const accessibleDepts = checker.getAccessibleDepts();
-      const allowedDepts = accessibleDepts
-        .filter((d) => d.hotelName === hotel)
-        .map((d) => d.deptName);
+      const ds = checker.getAccessibleDepts();
+      if (ds.unlimited)
+        return NextResponse.json({
+          dates,
+          employees: [],
+          schedule: {},
+          allDepts: [],
+          allPositions: [],
+          positionsByDept: {},
+        }); // DeptAdmin never unlimited; unreachable
+      const allowedDepts = ds.allowed.filter((d) => d.hotelName === hotel).map((d) => d.deptName);
 
       if (allowedDepts.length === 0) {
         return NextResponse.json({

@@ -23,6 +23,24 @@ interface UserWithAssignments {
   departments: { tenant: string; hotelName: string; deptName: string }[];
 }
 
+export type TenantScope = { unlimited: true } | { unlimited: false; allowed: string[] };
+
+export type HotelScope =
+  | { unlimited: true }
+  | {
+      unlimited: false;
+      allowed: {
+        tenant: string;
+        hotelName: string;
+        usrSystemCompanyId: string | null;
+        branchId: number | null;
+      }[];
+    };
+
+export type DeptScope =
+  | { unlimited: true }
+  | { unlimited: false; allowed: { hotelName: string; deptName: string }[] };
+
 export class PermissionChecker {
   constructor(private user: UserWithAssignments) {}
 
@@ -35,44 +53,50 @@ export class PermissionChecker {
   }
 
   canManageUser(targetRole: Role): boolean {
-    // SuperAdmin can manage anyone
     if (this.isSuperAdmin()) return true;
-    // CompanyAdmin can create HotelAdmin, DeptAdmin
     if (this.user.role === 'CompanyAdmin')
       return targetRole === 'HotelAdmin' || targetRole === 'DeptAdmin';
-    // HotelAdmin can create HotelAdmin, DeptAdmin
     if (this.user.role === 'HotelAdmin')
       return targetRole === 'HotelAdmin' || targetRole === 'DeptAdmin';
-    // DeptAdmin can create DeptAdmin
     if (this.user.role === 'DeptAdmin') return targetRole === 'DeptAdmin';
     return false;
   }
 
-  getAccessibleTenants(): string[] {
-    if (this.isSuperAdmin()) return []; // empty means "all" for SuperAdmin
+  getAccessibleTenants(): TenantScope {
+    if (this.isSuperAdmin()) return { unlimited: true };
     const fromTenants = this.user.tenants.map((t) => t.tenant);
     const fromHotels = this.user.hotels.map((h) => h.tenant);
     const fromDepts = this.user.departments.map((d) => d.tenant);
-    return [...new Set([...fromTenants, ...fromHotels, ...fromDepts])];
+    return {
+      unlimited: false,
+      allowed: [...new Set([...fromTenants, ...fromHotels, ...fromDepts])],
+    };
   }
 
-  getAccessibleHotels(): {
-    hotelName: string;
-    tenant: string;
-    usrSystemCompanyId: string | null;
-    branchId: number | null;
-  }[] {
-    if (this.isSuperAdmin()) return [];
-    return this.user.hotels;
+  getAccessibleHotels(): HotelScope {
+    if (this.isSuperAdmin()) return { unlimited: true };
+    return { unlimited: false, allowed: this.user.hotels };
   }
 
-  getAccessibleDepts(): { hotelName: string; deptName: string }[] {
-    if (this.isSuperAdmin()) return [];
-    return this.user.departments.map((d) => ({ hotelName: d.hotelName, deptName: d.deptName }));
+  getAccessibleDepts(): DeptScope {
+    if (this.isSuperAdmin()) return { unlimited: true };
+    return {
+      unlimited: false,
+      allowed: this.user.departments.map((d) => ({ hotelName: d.hotelName, deptName: d.deptName })),
+    };
   }
 
-  hasScheduleAccess(hotel: string, dept?: string): boolean {
+  hasScheduleAccess(hotel: string | null | undefined, dept?: string): boolean {
     if (this.isSuperAdmin()) return true;
+
+    if (!hotel) {
+      // No hotel context: allow if user has any active scope assignment
+      return (
+        this.user.tenants.length > 0 ||
+        this.user.hotels.length > 0 ||
+        this.user.departments.length > 0
+      );
+    }
 
     if (this.user.role === 'CompanyAdmin') {
       const tenants = this.user.tenants.map((t) => t.tenant);

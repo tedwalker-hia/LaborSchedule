@@ -8,7 +8,7 @@ import {
   type UserDetailRow,
   type UpdateUserFields,
 } from '../repositories/users-repo';
-import type { Role } from '../permissions';
+import type { Role } from '../auth/rbac';
 
 export class UserNotFoundError extends Error {
   readonly statusHint = 404;

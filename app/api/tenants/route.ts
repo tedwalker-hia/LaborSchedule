@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getUserPermissions } from '@/lib/permissions';
+import { getUserPermissions } from '@/lib/auth/rbac';
 import logger from '@/lib/logger';
 
 export const runtime = 'nodejs';
@@ -34,8 +34,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Non-SuperAdmin: return only accessible tenants
-    const accessibleTenants = checker.getAccessibleTenants();
-    return NextResponse.json(accessibleTenants.sort());
+    const ts = checker.getAccessibleTenants();
+    if (ts.unlimited) return NextResponse.json([]); // unreachable: SuperAdmin handled above
+    return NextResponse.json(ts.allowed.sort());
   } catch (error) {
     logger.error({ err: error }, 'Tenants API error');
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

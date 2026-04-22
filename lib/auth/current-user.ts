@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server';
-import type { Role } from '@/lib/permissions';
+import type { Role } from '@/lib/auth/rbac';
 
 export interface CurrentUser {
   userId: number;

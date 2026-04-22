@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getUserPermissions } from '@/lib/permissions';
+import { getUserPermissions } from '@/lib/auth/rbac';
 import logger from '@/lib/logger';
 
 export const runtime = 'nodejs';
@@ -33,8 +33,9 @@ export async function GET(request: NextRequest) {
 
     // DeptAdmin: only their assigned departments
     if (role === 'DeptAdmin') {
-      const accessibleDepts = checker.getAccessibleDepts();
-      const deptNames = accessibleDepts
+      const ds = checker.getAccessibleDepts();
+      if (ds.unlimited) return NextResponse.json([]); // DeptAdmin never unlimited; unreachable
+      const deptNames = ds.allowed
         .filter((d) => d.hotelName === hotel)
         .map((d) => d.deptName)
         .sort();
