@@ -1,25 +1,27 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { useAuth } from '@/lib/auth-context'
-import { Calendar, Users, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useState } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useAuth } from '@/lib/auth-context';
+import { Calendar, Users, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const navItems = [
   { href: '/schedule', label: 'Schedule', icon: Calendar },
   { href: '/users', label: 'Users', icon: Users },
-]
+];
 
 export default function Sidebar() {
-  const [isCollapsed, setIsCollapsed] = useState(false)
-  const pathname = usePathname()
-  const { user } = useAuth()
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const pathname = usePathname();
+  const { user } = useAuth();
 
-  if (!user) return null
+  if (!user) return null;
 
   return (
-    <div className={`flex flex-col h-full bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700 transition-all duration-200 ${isCollapsed ? 'w-16' : 'w-56'}`}>
+    <div
+      className={`flex flex-col h-full bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700 transition-all duration-200 ${isCollapsed ? 'w-16' : 'w-56'}`}
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-4 h-14 border-b border-gray-200 dark:border-slate-700">
         {!isCollapsed && (
@@ -37,9 +39,9 @@ export default function Sidebar() {
 
       {/* Nav items */}
       <nav className="flex-1 py-3 px-2 space-y-1">
-        {navItems.map(item => {
-          const isActive = pathname.startsWith(item.href)
-          const Icon = item.icon
+        {navItems.map((item) => {
+          const isActive = pathname.startsWith(item.href);
+          const Icon = item.icon;
           return (
             <Link
               key={item.href}
@@ -54,9 +56,9 @@ export default function Sidebar() {
               <Icon size={20} />
               {!isCollapsed && <span>{item.label}</span>}
             </Link>
-          )
+          );
         })}
       </nav>
     </div>
-  )
+  );
 }

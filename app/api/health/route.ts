@@ -1,12 +1,12 @@
-import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
 export async function GET() {
   try {
-    await prisma.$queryRaw`SELECT 1`
-    return NextResponse.json({ status: 'healthy', database: 'connected' })
+    await prisma.$queryRaw`SELECT 1`;
+    return NextResponse.json({ status: 'healthy', database: 'connected' });
   } catch (error) {
-    console.error('Health check failed:', error)
-    return NextResponse.json({ status: 'unhealthy', database: 'disconnected' }, { status: 503 })
+    console.error('Health check failed:', error);
+    return NextResponse.json({ status: 'unhealthy', database: 'disconnected' }, { status: 503 });
   }
 }

@@ -1,9 +1,9 @@
-'use client'
+'use client';
 
-import { AuthProvider } from '@/lib/auth-context'
-import { ThemeProvider } from '@/lib/theme-provider'
-import Sidebar from '@/components/navigation/Sidebar'
-import TopNavigation from '@/components/navigation/TopNavigation'
+import { AuthProvider } from '@/lib/auth-context';
+import { ThemeProvider } from '@/lib/theme-provider';
+import Sidebar from '@/components/navigation/Sidebar';
+import TopNavigation from '@/components/navigation/TopNavigation';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -20,5 +20,5 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </ThemeProvider>
     </AuthProvider>
-  )
+  );
 }

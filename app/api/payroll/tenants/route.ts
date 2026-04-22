@@ -1,12 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { Prisma } from '@prisma/client'
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
+    const userId = request.headers.get('x-user-id');
     if (!userId) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
     const tenants = await prisma.$queryRaw<
@@ -21,11 +22,11 @@ export async function GET(request: NextRequest) {
       INNER JOIN HIA_BIOrganizationName o
         ON p.UsrSystemCompanyID = o.UsrSystemCompanyID
       WHERE p.Hours > 0
-    `)
+    `);
 
-    return NextResponse.json(tenants)
+    return NextResponse.json(tenants);
   } catch (error) {
-    console.error('Payroll tenants error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Payroll tenants error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -1,93 +1,99 @@
-'use client'
+'use client';
 
-import { useState, useEffect, useCallback } from 'react'
-import Modal from '@/components/ui/Modal'
-import { FilterState } from '@/components/schedule/useScheduleState'
+import { useState, useEffect, useCallback } from 'react';
+import Modal from '@/components/ui/Modal';
+import type { FilterState } from '@/components/schedule/useScheduleState';
 
 interface Employee {
-  code: string
-  firstName: string
-  lastName: string
-  deptName: string
-  positionName: string
+  code: string;
+  firstName: string;
+  lastName: string;
+  deptName: string;
+  positionName: string;
 }
 
 interface ClearModalProps {
-  open: boolean
-  onClose: () => void
-  filters: FilterState
-  selectedEmployees?: Set<string>
-  onComplete: () => void
+  open: boolean;
+  onClose: () => void;
+  filters: FilterState;
+  selectedEmployees?: Set<string>;
+  onComplete: () => void;
 }
 
-export default function ClearModal({ open, onClose, filters, selectedEmployees, onComplete }: ClearModalProps) {
-  const [startDate, setStartDate] = useState(filters.startDate)
-  const [endDate, setEndDate] = useState(filters.endDate)
-  const [employees, setEmployees] = useState<Employee[]>([])
-  const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set())
-  const [clearLocked, setClearLocked] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [fetchingEmployees, setFetchingEmployees] = useState(false)
-  const [error, setError] = useState('')
-  const [result, setResult] = useState('')
+export default function ClearModal({
+  open,
+  onClose,
+  filters,
+  selectedEmployees,
+  onComplete,
+}: ClearModalProps) {
+  const [startDate, setStartDate] = useState(filters.startDate);
+  const [endDate, setEndDate] = useState(filters.endDate);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
+  const [clearLocked, setClearLocked] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [fetchingEmployees, setFetchingEmployees] = useState(false);
+  const [error, setError] = useState('');
+  const [result, setResult] = useState('');
 
   useEffect(() => {
     if (open) {
-      setStartDate(filters.startDate)
-      setEndDate(filters.endDate)
-      setSelectedCodes(new Set(selectedEmployees ?? []))
-      setClearLocked(false)
-      setError('')
-      setResult('')
-      fetchEmployees()
+      setStartDate(filters.startDate);
+      setEndDate(filters.endDate);
+      setSelectedCodes(new Set(selectedEmployees ?? []));
+      setClearLocked(false);
+      setError('');
+      setResult('');
+      fetchEmployees();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+  }, [open]);
 
   const fetchEmployees = useCallback(async () => {
-    if (!filters.hotelInfo) return
-    setFetchingEmployees(true)
+    if (!filters.hotelInfo) return;
+    setFetchingEmployees(true);
     try {
       const params = new URLSearchParams({
         hotel: filters.hotel,
         usrSystemCompanyId: filters.hotelInfo.usrSystemCompanyId,
-      })
-      const res = await fetch(`/api/employees?${params.toString()}`)
-      if (!res.ok) throw new Error('Failed to fetch employees')
-      const json = await res.json()
-      const list: Employee[] = json.employees ?? json
-      setEmployees(list)
+      });
+      const res = await fetch(`/api/employees?${params.toString()}`);
+      if (!res.ok) throw new Error('Failed to fetch employees');
+      const json = await res.json();
+      const list: Employee[] = json.employees ?? json;
+      setEmployees(list);
       if (selectedEmployees && selectedEmployees.size > 0) {
-        setSelectedCodes(new Set(selectedEmployees))
+        setSelectedCodes(new Set(selectedEmployees));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch employees')
+      setError(err instanceof Error ? err.message : 'Failed to fetch employees');
     } finally {
-      setFetchingEmployees(false)
+      setFetchingEmployees(false);
     }
-  }, [filters.hotel, filters.hotelInfo, selectedEmployees])
+  }, [filters.hotel, filters.hotelInfo, selectedEmployees]);
 
   const toggleEmployee = (code: string) => {
     setSelectedCodes((prev) => {
-      const next = new Set(prev)
-      if (next.has(code)) next.delete(code)
-      else next.add(code)
-      return next
-    })
-  }
+      const next = new Set(prev);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
+      return next;
+    });
+  };
 
   const toggleAll = () => {
     if (selectedCodes.size === employees.length) {
-      setSelectedCodes(new Set())
+      setSelectedCodes(new Set());
     } else {
-      setSelectedCodes(new Set(employees.map((e) => e.code)))
+      setSelectedCodes(new Set(employees.map((e) => e.code)));
     }
-  }
+  };
 
   const handleClear = async () => {
-    if (!filters.hotelInfo) return
-    setLoading(true)
-    setError('')
+    if (!filters.hotelInfo) return;
+    setLoading(true);
+    setError('');
     try {
       const res = await fetch('/api/schedule/clear', {
         method: 'POST',
@@ -102,32 +108,38 @@ export default function ClearModal({ open, onClose, filters, selectedEmployees, 
           endDate,
           clearLocked,
         }),
-      })
+      });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body.error ?? 'Clear failed')
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? 'Clear failed');
       }
-      const json = await res.json()
-      setResult(json.message ?? 'Schedule cleared successfully.')
+      const json = await res.json();
+      setResult(json.message ?? 'Schedule cleared successfully.');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Clear failed')
+      setError(err instanceof Error ? err.message : 'Clear failed');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleClose = () => {
-    if (result) onComplete()
-    onClose()
-  }
+    if (result) onComplete();
+    onClose();
+  };
 
   const footer = result ? (
-    <button onClick={handleClose} className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium">
+    <button
+      onClick={handleClose}
+      className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium"
+    >
       Close
     </button>
   ) : (
     <>
-      <button onClick={handleClose} className="bg-gray-100 text-gray-700 hover:bg-gray-200 px-4 py-2 rounded-lg text-sm font-medium">
+      <button
+        onClick={handleClose}
+        className="bg-gray-100 text-gray-700 hover:bg-gray-200 px-4 py-2 rounded-lg text-sm font-medium"
+      >
         Cancel
       </button>
       <button
@@ -138,7 +150,7 @@ export default function ClearModal({ open, onClose, filters, selectedEmployees, 
         {loading ? 'Clearing...' : 'Clear Schedule'}
       </button>
     </>
-  )
+  );
 
   return (
     <Modal isOpen={open} onClose={handleClose} title="Clear Schedule" size="md" footer={footer}>
@@ -187,7 +199,10 @@ export default function ClearModal({ open, onClose, filters, selectedEmployees, 
             ) : (
               <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
                 {employees.map((emp) => (
-                  <label key={emp.code} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                  <label
+                    key={emp.code}
+                    className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                  >
                     <input
                       type="checkbox"
                       checked={selectedCodes.has(emp.code)}
@@ -215,5 +230,5 @@ export default function ClearModal({ open, onClose, filters, selectedEmployees, 
         </div>
       )}
     </Modal>
-  )
+  );
 }

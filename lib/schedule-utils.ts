@@ -6,10 +6,10 @@
  * Format an hour (0–23) and minute into "H:MM AM/PM" with no leading zero on the hour.
  */
 export function formatTime(hour: number, minute: number): string {
-  const period = hour < 12 ? "AM" : "PM";
+  const period = hour < 12 ? 'AM' : 'PM';
   let displayHour = hour % 12;
   if (displayHour === 0) displayHour = 12;
-  const mm = minute.toString().padStart(2, "0");
+  const mm = minute.toString().padStart(2, '0');
   return `${displayHour}:${mm} ${period}`;
 }
 
@@ -22,13 +22,13 @@ export function parseTimeToMinutes(timeStr: string): number | null {
   const match = trimmed.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
   if (!match) return null;
 
-  let hour = parseInt(match[1], 10);
-  const minute = parseInt(match[2], 10);
-  const period = match[3].toUpperCase();
+  let hour = parseInt(match[1]!, 10);
+  const minute = parseInt(match[2]!, 10);
+  const period = match[3]!.toUpperCase();
 
   if (hour < 1 || hour > 12 || minute < 0 || minute > 59) return null;
 
-  if (period === "AM") {
+  if (period === 'AM') {
     if (hour === 12) hour = 0;
   } else {
     if (hour !== 12) hour += 12;
@@ -62,9 +62,7 @@ export function calcHours(clockIn: string, clockOut: string): number | null {
  *   otherwise   → 9:00 AM
  * Returns null if hours is not a positive number.
  */
-export function generateClockTimes(
-  hours: number
-): { clockIn: string; clockOut: string } | null {
+export function generateClockTimes(hours: number): { clockIn: string; clockOut: string } | null {
   if (!hours || hours <= 0) return null;
 
   // Round to nearest 15 minutes
@@ -98,20 +96,20 @@ export function generateClockTimes(
  * - Fixes known truncations/abbreviations.
  */
 export function cleanDeptName(rawDept: string): string {
-  const parts = rawDept.split("/");
+  const parts = rawDept.split('/');
 
   let name: string;
   if (parts.length >= 3) {
-    name = parts[1].trim();
+    name = parts[1]!.trim();
   } else {
     name = rawDept.trim();
   }
 
   // Fix known truncations
-  if (name === "Administrati") {
-    name = "Administration";
-  } else if (name.startsWith("Comp Food")) {
-    name = "Comp Food & Beverage";
+  if (name === 'Administrati') {
+    name = 'Administration';
+  } else if (name.startsWith('Comp Food')) {
+    name = 'Comp Food & Beverage';
   }
 
   return name;

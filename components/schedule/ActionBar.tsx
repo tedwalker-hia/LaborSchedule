@@ -1,29 +1,29 @@
-'use client'
+'use client';
 
-import { Lock, Unlock, Trash2, Download, Upload, Plus, Save } from 'lucide-react'
+import { Lock, Unlock, Trash2, Download, Upload, Plus, Save } from 'lucide-react';
 
 interface ActionBarProps {
-  hasChanges: boolean
-  selectedCount: number
-  loading: boolean
-  onSave: () => void
-  onDiscard: () => void
-  onSelectAll: () => void
-  onDeselectAll: () => void
-  onOpenGenerate: () => void
-  onOpenClear: () => void
-  onOpenImport: () => void
-  onOpenAdd: () => void
-  onOpenDelete: () => void
-  onOpenRefresh: () => void
-  onOpenSeed: () => void
+  hasChanges: boolean;
+  selectedCount: number;
+  loading: boolean;
+  onSave: () => void;
+  onDiscard: () => void;
+  onSelectAll: () => void;
+  onDeselectAll: () => void;
+  onOpenGenerate: () => void;
+  onOpenClear: () => void;
+  onOpenImport: () => void;
+  onOpenAdd: () => void;
+  onOpenDelete: () => void;
+  onOpenRefresh: () => void;
+  onOpenSeed: () => void;
 }
 
 const outlineBtn =
-  'px-3 py-2 text-sm font-medium rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1'
+  'px-3 py-2 text-sm font-medium rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1';
 
 const iconBtn =
-  'p-2 rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1'
+  'p-2 rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1';
 
 export default function ActionBar({
   hasChanges,
@@ -39,7 +39,7 @@ export default function ActionBar({
   onOpenRefresh,
   onOpenSeed,
 }: ActionBarProps) {
-  const hasSelection = selectedCount > 0
+  const hasSelection = selectedCount > 0;
 
   return (
     <div className="bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700">
@@ -128,5 +128,5 @@ export default function ActionBar({
         </div>
       </div>
     </div>
-  )
+  );
 }

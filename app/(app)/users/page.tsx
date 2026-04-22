@@ -1,84 +1,84 @@
-'use client'
+'use client';
 
-import { useState, useEffect, useCallback } from 'react'
-import { Plus } from 'lucide-react'
-import Modal from '@/components/ui/Modal'
-import UserTable, { type UserRow } from '@/components/users/UserTable'
-import UserModal from '@/components/users/UserModal'
+import { useState, useEffect, useCallback } from 'react';
+import { Plus } from 'lucide-react';
+import Modal from '@/components/ui/Modal';
+import UserTable, { type UserRow } from '@/components/users/UserTable';
+import UserModal from '@/components/users/UserModal';
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<UserRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [selectedUser, setSelectedUser] = useState<UserRow | null>(null)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [deleteConfirm, setDeleteConfirm] = useState<{ userId: number; name: string } | null>(null)
-  const [deleting, setDeleting] = useState(false)
-  const [deleteError, setDeleteError] = useState('')
+  const [users, setUsers] = useState<UserRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ userId: number; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   const fetchUsers = useCallback(async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const res = await fetch('/api/users')
-      if (!res.ok) throw new Error('Failed to fetch users')
-      const data: UserRow[] = await res.json()
-      setUsers(data)
+      const res = await fetch('/api/users');
+      if (!res.ok) throw new Error('Failed to fetch users');
+      const data: UserRow[] = await res.json();
+      setUsers(data);
     } catch {
-      setUsers([])
+      setUsers([]);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    fetchUsers()
-  }, [fetchUsers])
+    fetchUsers();
+  }, [fetchUsers]);
 
   // ── Add user ───────────────────────────────────────────────────────────
   const handleAdd = () => {
-    setSelectedUser(null)
-    setModalOpen(true)
-  }
+    setSelectedUser(null);
+    setModalOpen(true);
+  };
 
   // ── Edit user ──────────────────────────────────────────────────────────
   const handleEdit = (user: UserRow) => {
-    setSelectedUser(user)
-    setModalOpen(true)
-  }
+    setSelectedUser(user);
+    setModalOpen(true);
+  };
 
   // ── Delete user ────────────────────────────────────────────────────────
   const handleDeleteRequest = (user: UserRow) => {
-    setDeleteError('')
-    setDeleteConfirm({ userId: user.userId, name: `${user.firstName} ${user.lastName}` })
-  }
+    setDeleteError('');
+    setDeleteConfirm({ userId: user.userId, name: `${user.firstName} ${user.lastName}` });
+  };
 
   const handleDeleteConfirm = async () => {
-    if (!deleteConfirm) return
-    setDeleting(true)
-    setDeleteError('')
+    if (!deleteConfirm) return;
+    setDeleting(true);
+    setDeleteError('');
     try {
-      const res = await fetch(`/api/users/${deleteConfirm.userId}`, { method: 'DELETE' })
+      const res = await fetch(`/api/users/${deleteConfirm.userId}`, { method: 'DELETE' });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body.error ?? 'Failed to delete user')
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? 'Failed to delete user');
       }
-      setDeleteConfirm(null)
-      fetchUsers()
+      setDeleteConfirm(null);
+      fetchUsers();
     } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Failed to delete user')
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete user');
     } finally {
-      setDeleting(false)
+      setDeleting(false);
     }
-  }
+  };
 
   const handleDeleteCancel = () => {
-    setDeleteConfirm(null)
-    setDeleteError('')
-  }
+    setDeleteConfirm(null);
+    setDeleteError('');
+  };
 
   // ── After modal save ──────────────────────────────────────────────────
   const handleSaved = () => {
-    fetchUsers()
-  }
+    fetchUsers();
+  };
 
   return (
     <div>
@@ -152,5 +152,5 @@ export default function UsersPage() {
         </div>
       </Modal>
     </div>
-  )
+  );
 }

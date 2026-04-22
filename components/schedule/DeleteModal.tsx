@@ -1,35 +1,41 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
-import Modal from '@/components/ui/Modal'
-import { FilterState } from '@/components/schedule/useScheduleState'
+import { useState, useEffect } from 'react';
+import Modal from '@/components/ui/Modal';
+import type { FilterState } from '@/components/schedule/useScheduleState';
 
 interface DeleteModalProps {
-  open: boolean
-  onClose: () => void
-  filters: FilterState
-  selectedEmployees?: Set<string>
-  onComplete: () => void
+  open: boolean;
+  onClose: () => void;
+  filters: FilterState;
+  selectedEmployees?: Set<string>;
+  onComplete: () => void;
 }
 
-export default function DeleteModal({ open, onClose, filters, selectedEmployees, onComplete }: DeleteModalProps) {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [result, setResult] = useState('')
+export default function DeleteModal({
+  open,
+  onClose,
+  filters,
+  selectedEmployees,
+  onComplete,
+}: DeleteModalProps) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [result, setResult] = useState('');
 
   useEffect(() => {
     if (open) {
-      setError('')
-      setResult('')
+      setError('');
+      setResult('');
     }
-  }, [open])
+  }, [open]);
 
-  const employeeCodes = selectedEmployees ? [...selectedEmployees] : []
+  const employeeCodes = selectedEmployees ? [...selectedEmployees] : [];
 
   const handleDelete = async () => {
-    if (!filters.hotelInfo) return
-    setLoading(true)
-    setError('')
+    if (!filters.hotelInfo) return;
+    setLoading(true);
+    setError('');
     try {
       const res = await fetch('/api/schedule/delete', {
         method: 'POST',
@@ -40,32 +46,38 @@ export default function DeleteModal({ open, onClose, filters, selectedEmployees,
           startDate: filters.startDate,
           endDate: filters.endDate,
         }),
-      })
+      });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body.error ?? 'Delete failed')
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? 'Delete failed');
       }
-      const json = await res.json()
-      setResult(json.message ?? 'Records deleted successfully.')
+      const json = await res.json();
+      setResult(json.message ?? 'Records deleted successfully.');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Delete failed')
+      setError(err instanceof Error ? err.message : 'Delete failed');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleClose = () => {
-    if (result) onComplete()
-    onClose()
-  }
+    if (result) onComplete();
+    onClose();
+  };
 
   const footer = result ? (
-    <button onClick={handleClose} className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium">
+    <button
+      onClick={handleClose}
+      className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium"
+    >
       Close
     </button>
   ) : (
     <>
-      <button onClick={handleClose} className="bg-gray-100 text-gray-700 hover:bg-gray-200 px-4 py-2 rounded-lg text-sm font-medium">
+      <button
+        onClick={handleClose}
+        className="bg-gray-100 text-gray-700 hover:bg-gray-200 px-4 py-2 rounded-lg text-sm font-medium"
+      >
         Cancel
       </button>
       <button
@@ -76,10 +88,16 @@ export default function DeleteModal({ open, onClose, filters, selectedEmployees,
         {loading ? 'Deleting...' : 'Delete'}
       </button>
     </>
-  )
+  );
 
   return (
-    <Modal isOpen={open} onClose={handleClose} title="Delete Schedule Records" size="sm" footer={footer}>
+    <Modal
+      isOpen={open}
+      onClose={handleClose}
+      title="Delete Schedule Records"
+      size="sm"
+      footer={footer}
+    >
       {error && <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm mb-4">{error}</div>}
       {result ? (
         <div className="p-3 bg-green-50 text-green-700 rounded-lg text-sm">{result}</div>
@@ -95,14 +113,18 @@ export default function DeleteModal({ open, onClose, filters, selectedEmployees,
             ) : (
               <ul className="text-sm text-gray-800 space-y-1">
                 {employeeCodes.map((code) => (
-                  <li key={code} className="font-mono">{code}</li>
+                  <li key={code} className="font-mono">
+                    {code}
+                  </li>
                 ))}
               </ul>
             )}
           </div>
 
           <div className="text-sm text-gray-600">
-            <p><strong>Date range:</strong> {filters.startDate} to {filters.endDate}</p>
+            <p>
+              <strong>Date range:</strong> {filters.startDate} to {filters.endDate}
+            </p>
           </div>
 
           <div className="p-3 bg-yellow-50 text-yellow-700 rounded-lg text-sm">
@@ -111,5 +133,5 @@ export default function DeleteModal({ open, onClose, filters, selectedEmployees,
         </div>
       )}
     </Modal>
-  )
+  );
 }

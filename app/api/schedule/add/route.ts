@@ -1,12 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { calcHours } from '@/lib/schedule-utils'
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { calcHours } from '@/lib/schedule-utils';
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
+    const userId = request.headers.get('x-user-id');
     if (!userId) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
     const {
@@ -22,13 +23,13 @@ export async function POST(request: NextRequest) {
       date,
       clockIn,
       clockOut,
-    } = await request.json()
+    } = await request.json();
 
     if (!usrSystemCompanyId || !employeeCode || !date) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const scheduleDate = new Date(date + 'T00:00:00')
+    const scheduleDate = new Date(date + 'T00:00:00');
 
     // Check for existing record with same employee+date+position
     const existing = await prisma.laborSchedule.findFirst({
@@ -38,16 +39,16 @@ export async function POST(request: NextRequest) {
         scheduleDate,
         positionName: positionName || null,
       },
-    })
+    });
 
     if (existing) {
       return NextResponse.json(
         { error: 'A schedule record already exists for this employee, date, and position.' },
         { status: 409 },
-      )
+      );
     }
 
-    const hours = clockIn && clockOut ? calcHours(clockIn, clockOut) : null
+    const hours = clockIn && clockOut ? calcHours(clockIn, clockOut) : null;
 
     const record = await prisma.laborSchedule.create({
       data: {
@@ -66,11 +67,11 @@ export async function POST(request: NextRequest) {
         positionName: positionName || null,
         locked: true, // manual records auto-lock
       },
-    })
+    });
 
-    return NextResponse.json({ success: true, id: record.id })
+    return NextResponse.json({ success: true, id: record.id });
   } catch (error) {
-    console.error('Schedule add error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Schedule add error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

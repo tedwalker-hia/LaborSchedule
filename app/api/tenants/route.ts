@@ -1,18 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { getUserPermissions } from '@/lib/permissions'
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { getUserPermissions } from '@/lib/permissions';
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
-    const role = request.headers.get('x-user-role')
+    const userId = request.headers.get('x-user-id');
+    const role = request.headers.get('x-user-role');
     if (!userId) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const checker = await getUserPermissions(parseInt(userId))
+    const checker = await getUserPermissions(parseInt(userId));
     if (!checker) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     if (checker.isSuperAdmin()) {
@@ -20,19 +21,19 @@ export async function GET(request: NextRequest) {
         distinct: ['tenant'],
         where: { tenant: { not: '' } },
         select: { tenant: true },
-      })
+      });
       const tenants = rows
-        .map(r => r.tenant)
+        .map((r) => r.tenant)
         .filter((t): t is string => t !== null && t !== '')
-        .sort()
-      return NextResponse.json(tenants)
+        .sort();
+      return NextResponse.json(tenants);
     }
 
     // Non-SuperAdmin: return only accessible tenants
-    const accessibleTenants = checker.getAccessibleTenants()
-    return NextResponse.json(accessibleTenants.sort())
+    const accessibleTenants = checker.getAccessibleTenants();
+    return NextResponse.json(accessibleTenants.sort());
   } catch (error) {
-    console.error('Tenants API error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Tenants API error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -1,17 +1,17 @@
-'use client'
+'use client';
 
-import { useEffect, useState } from 'react'
-import { useScheduleState } from '@/components/schedule/useScheduleState'
-import FilterBar from '@/components/schedule/FilterBar'
-import ActionBar from '@/components/schedule/ActionBar'
-import ScheduleGrid from '@/components/schedule/ScheduleGrid'
-import GenerateModal from '@/components/schedule/GenerateModal'
-import ClearModal from '@/components/schedule/ClearModal'
-import ImportModal from '@/components/schedule/ImportModal'
-import AddRecordModal from '@/components/schedule/AddRecordModal'
-import DeleteModal from '@/components/schedule/DeleteModal'
-import RefreshEmployeesModal from '@/components/schedule/RefreshEmployeesModal'
-import SeedEmployeesModal from '@/components/schedule/SeedEmployeesModal'
+import { useEffect, useState } from 'react';
+import { useScheduleState } from '@/components/schedule/useScheduleState';
+import FilterBar from '@/components/schedule/FilterBar';
+import ActionBar from '@/components/schedule/ActionBar';
+import ScheduleGrid from '@/components/schedule/ScheduleGrid';
+import GenerateModal from '@/components/schedule/GenerateModal';
+import ClearModal from '@/components/schedule/ClearModal';
+import ImportModal from '@/components/schedule/ImportModal';
+import AddRecordModal from '@/components/schedule/AddRecordModal';
+import DeleteModal from '@/components/schedule/DeleteModal';
+import RefreshEmployeesModal from '@/components/schedule/RefreshEmployeesModal';
+import SeedEmployeesModal from '@/components/schedule/SeedEmployeesModal';
 
 export default function SchedulePage() {
   const {
@@ -35,24 +35,22 @@ export default function SchedulePage() {
     positions,
     loadTenants,
     loadHotels,
-    loadDepartments,
-    loadPositions,
     loadSchedule,
-  } = useScheduleState()
+  } = useScheduleState();
 
   // Modal state
-  const [generateModalOpen, setGenerateModalOpen] = useState(false)
-  const [clearModalOpen, setClearModalOpen] = useState(false)
-  const [importModalOpen, setImportModalOpen] = useState(false)
-  const [addModalOpen, setAddModalOpen] = useState(false)
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
-  const [refreshModalOpen, setRefreshModalOpen] = useState(false)
-  const [seedModalOpen, setSeedModalOpen] = useState(false)
+  const [generateModalOpen, setGenerateModalOpen] = useState(false);
+  const [clearModalOpen, setClearModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [refreshModalOpen, setRefreshModalOpen] = useState(false);
+  const [seedModalOpen, setSeedModalOpen] = useState(false);
 
   // Load tenants on mount
   useEffect(() => {
-    loadTenants()
-  }, [loadTenants])
+    loadTenants();
+  }, [loadTenants]);
 
   // Status message
   const statusMessage = loading
@@ -61,7 +59,7 @@ export default function SchedulePage() {
       ? `${Object.keys(changes).length} unsaved change(s)`
       : data
         ? `${data.employees.length} employee(s) · ${data.dates.length} day(s)`
-        : null
+        : null;
 
   return (
     <div className="space-y-4">
@@ -77,9 +75,6 @@ export default function SchedulePage() {
         departments={departments}
         positions={positions}
         loadHotels={loadHotels}
-        loadDepartments={loadDepartments}
-        loadPositions={loadPositions}
-        loadSchedule={loadSchedule}
         loading={loading}
       />
 
@@ -184,5 +179,5 @@ export default function SchedulePage() {
         />
       )}
     </div>
-  )
+  );
 }

@@ -1,33 +1,28 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
+    const userId = request.headers.get('x-user-id');
     if (!userId) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const {
-      usrSystemCompanyId,
-      hotelName,
-      branchId,
-      tenant,
-      newEmployees,
-      removedCodes,
-    } = await request.json()
+    const { usrSystemCompanyId, hotelName, branchId, tenant, newEmployees, removedCodes } =
+      await request.json();
 
     if (!usrSystemCompanyId) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    let added = 0
-    let removed = 0
+    let added = 0;
+    let removed = 0;
 
     // Add new employees with placeholder records (today's date, no clock times)
     if (Array.isArray(newEmployees)) {
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
       for (const emp of newEmployees) {
         await prisma.laborSchedule.create({
@@ -43,8 +38,8 @@ export async function POST(request: NextRequest) {
             positionName: emp.positionName || null,
             tenant,
           },
-        })
-        added++
+        });
+        added++;
       }
     }
 
@@ -55,13 +50,13 @@ export async function POST(request: NextRequest) {
           usrSystemCompanyId,
           employeeCode: { in: removedCodes },
         },
-      })
-      removed = result.count
+      });
+      removed = result.count;
     }
 
-    return NextResponse.json({ added, removed })
+    return NextResponse.json({ added, removed });
   } catch (error) {
-    console.error('Refresh error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Refresh error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -1,14 +1,14 @@
-'use client'
+'use client';
 
-import { useAuth } from '@/lib/auth-context'
-import { useTheme } from '@/lib/theme-provider'
-import { LogOut, Moon, Sun } from 'lucide-react'
+import { useAuth } from '@/lib/auth-context';
+import { useTheme } from '@/lib/theme-provider';
+import { LogOut, Moon, Sun } from 'lucide-react';
 
 export default function TopNavigation() {
-  const { user, logout } = useAuth()
-  const { isDark, toggle } = useTheme()
+  const { user, logout } = useAuth();
+  const { isDark, toggle } = useTheme();
 
-  if (!user) return null
+  if (!user) return null;
 
   return (
     <div className="flex items-center justify-between h-14 px-6 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700">
@@ -38,5 +38,5 @@ export default function TopNavigation() {
         </button>
       </div>
     </div>
-  )
+  );
 }

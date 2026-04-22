@@ -1,23 +1,23 @@
-'use client'
+'use client';
 
-import { Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2 } from 'lucide-react';
 
 export interface UserRow {
-  userId: number
-  firstName: string
-  lastName: string
-  email: string
-  role: string
-  isActive: boolean
-  tenants: { tenant: string }[]
-  hotels: { tenant: string; hotelName: string }[]
-  departments: { tenant: string; hotelName: string; deptName: string }[]
+  userId: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+  tenants: { tenant: string }[];
+  hotels: { tenant: string; hotelName: string }[];
+  departments: { tenant: string; hotelName: string; deptName: string }[];
 }
 
 interface UserTableProps {
-  users: UserRow[]
-  onEdit: (user: UserRow) => void
-  onDelete: (user: UserRow) => void
+  users: UserRow[];
+  onEdit: (user: UserRow) => void;
+  onDelete: (user: UserRow) => void;
 }
 
 const roleBadgeColors: Record<string, string> = {
@@ -25,7 +25,7 @@ const roleBadgeColors: Record<string, string> = {
   CompanyAdmin: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
   HotelAdmin: 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300',
   DeptAdmin: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
-}
+};
 
 export default function UserTable({ users, onEdit, onDelete }: UserTableProps) {
   return (
@@ -54,7 +54,10 @@ export default function UserTable({ users, onEdit, onDelete }: UserTableProps) {
           <tbody className="divide-y divide-gray-200 dark:divide-slate-700">
             {users.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                <td
+                  colSpan={5}
+                  className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400"
+                >
                   No users found.
                 </td>
               </tr>
@@ -115,5 +118,5 @@ export default function UserTable({ users, onEdit, onDelete }: UserTableProps) {
         </table>
       </div>
     </div>
-  )
+  );
 }

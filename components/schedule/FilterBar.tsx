@@ -1,28 +1,25 @@
-'use client'
+'use client';
 
-import { FilterState, HotelOption } from '@/components/schedule/useScheduleState'
+import type { FilterState, HotelOption } from '@/components/schedule/useScheduleState';
 
 interface FilterBarProps {
-  filters: FilterState
-  setFilters: (fn: (prev: FilterState) => FilterState) => void
-  tenants: string[]
-  hotels: HotelOption[]
-  departments: string[]
-  positions: string[]
-  loadHotels: (tenant: string) => void
-  loadDepartments: () => void
-  loadPositions: () => void
-  loadSchedule: () => void
-  loading: boolean
+  filters: FilterState;
+  setFilters: (fn: (prev: FilterState) => FilterState) => void;
+  tenants: string[];
+  hotels: HotelOption[];
+  departments: string[];
+  positions: string[];
+  loadHotels: (tenant: string) => void;
+  loading: boolean;
 }
 
 const selectClasses =
-  'px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-700 border-gray-300 dark:border-slate-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500'
+  'px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-700 border-gray-300 dark:border-slate-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500';
 
-const labelClasses = 'text-sm font-medium text-gray-700 dark:text-gray-300'
+const labelClasses = 'text-sm font-medium text-gray-700 dark:text-gray-300';
 
 const inputClasses =
-  'px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-700 border-gray-300 dark:border-slate-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500'
+  'px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-700 border-gray-300 dark:border-slate-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500';
 
 export default function FilterBar({
   filters,
@@ -32,44 +29,47 @@ export default function FilterBar({
   departments,
   positions,
   loadHotels,
-  loadDepartments,
-  loadPositions,
-  loadSchedule,
   loading,
 }: FilterBarProps) {
   function handleTenantChange(value: string) {
-    setFilters(prev => ({ ...prev, tenant: value, hotel: '', hotelInfo: null, department: '', position: '' }))
-    if (value) loadHotels(value)
+    setFilters((prev) => ({
+      ...prev,
+      tenant: value,
+      hotel: '',
+      hotelInfo: null,
+      department: '',
+      position: '',
+    }));
+    if (value) loadHotels(value);
   }
 
   function handleHotelChange(value: string) {
-    const hotelInfo = hotels.find(h => h.name === value) || null
-    setFilters(prev => ({ ...prev, hotel: value, hotelInfo, department: '', position: '' }))
-    if (hotelInfo) {
-      loadDepartments()
-      loadSchedule()
-    }
+    const match = hotels.find((h) => h.hotelName === value);
+    const hotelInfo =
+      match && match.branchId != null && match.usrSystemCompanyId != null
+        ? {
+            hotelName: match.hotelName,
+            branchId: match.branchId,
+            usrSystemCompanyId: match.usrSystemCompanyId,
+          }
+        : null;
+    setFilters((prev) => ({ ...prev, hotel: value, hotelInfo, department: '', position: '' }));
   }
 
   function handleDepartmentChange(value: string) {
-    setFilters(prev => ({ ...prev, department: value, position: '' }))
-    loadPositions()
-    loadSchedule()
+    setFilters((prev) => ({ ...prev, department: value, position: '' }));
   }
 
   function handlePositionChange(value: string) {
-    setFilters(prev => ({ ...prev, position: value }))
-    loadSchedule()
+    setFilters((prev) => ({ ...prev, position: value }));
   }
 
   function handleStartDateChange(value: string) {
-    setFilters(prev => ({ ...prev, startDate: value }))
-    loadSchedule()
+    setFilters((prev) => ({ ...prev, startDate: value }));
   }
 
   function handleEndDateChange(value: string) {
-    setFilters(prev => ({ ...prev, endDate: value }))
-    loadSchedule()
+    setFilters((prev) => ({ ...prev, endDate: value }));
   }
 
   return (
@@ -80,12 +80,14 @@ export default function FilterBar({
           <select
             className={selectClasses}
             value={filters.tenant}
-            onChange={e => handleTenantChange(e.target.value)}
+            onChange={(e) => handleTenantChange(e.target.value)}
             disabled={loading}
           >
             <option value="">-- Select Tenant --</option>
-            {tenants.map(t => (
-              <option key={t} value={t}>{t}</option>
+            {tenants.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
             ))}
           </select>
         </div>
@@ -95,12 +97,14 @@ export default function FilterBar({
           <select
             className={selectClasses}
             value={filters.hotel}
-            onChange={e => handleHotelChange(e.target.value)}
+            onChange={(e) => handleHotelChange(e.target.value)}
             disabled={!filters.tenant || loading}
           >
             <option value="">-- Select Hotel --</option>
-            {hotels.map(h => (
-              <option key={`${h.branchId}-${h.usrSystemCompanyId}`} value={h.name}>{h.name}</option>
+            {hotels.map((h) => (
+              <option key={`${h.branchId}-${h.usrSystemCompanyId}`} value={h.hotelName}>
+                {h.hotelName}
+              </option>
             ))}
           </select>
         </div>
@@ -110,12 +114,14 @@ export default function FilterBar({
           <select
             className={selectClasses}
             value={filters.department}
-            onChange={e => handleDepartmentChange(e.target.value)}
+            onChange={(e) => handleDepartmentChange(e.target.value)}
             disabled={!filters.hotel || loading}
           >
             <option value="">-- All Departments --</option>
-            {departments.map(d => (
-              <option key={d} value={d}>{d}</option>
+            {departments.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
             ))}
           </select>
         </div>
@@ -125,12 +131,14 @@ export default function FilterBar({
           <select
             className={selectClasses}
             value={filters.position}
-            onChange={e => handlePositionChange(e.target.value)}
+            onChange={(e) => handlePositionChange(e.target.value)}
             disabled={!filters.hotel || loading}
           >
             <option value="">-- All Positions --</option>
-            {positions.map(p => (
-              <option key={p} value={p}>{p}</option>
+            {positions.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
             ))}
           </select>
         </div>
@@ -141,7 +149,7 @@ export default function FilterBar({
             type="date"
             className={inputClasses}
             value={filters.startDate}
-            onChange={e => handleStartDateChange(e.target.value)}
+            onChange={(e) => handleStartDateChange(e.target.value)}
             disabled={!filters.hotel || loading}
           />
         </div>
@@ -152,11 +160,11 @@ export default function FilterBar({
             type="date"
             className={inputClasses}
             value={filters.endDate}
-            onChange={e => handleEndDateChange(e.target.value)}
+            onChange={(e) => handleEndDateChange(e.target.value)}
             disabled={!filters.hotel || loading}
           />
         </div>
       </div>
     </div>
-  )
+  );
 }

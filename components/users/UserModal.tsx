@@ -1,22 +1,22 @@
-'use client'
+'use client';
 
-import { useState, useEffect, useCallback } from 'react'
-import Modal from '@/components/ui/Modal'
-import type { UserRow } from '@/components/users/UserTable'
+import { useState, useEffect, useCallback } from 'react';
+import Modal from '@/components/ui/Modal';
+import type { UserRow } from '@/components/users/UserTable';
 
-type Role = 'SuperAdmin' | 'CompanyAdmin' | 'HotelAdmin' | 'DeptAdmin'
+type Role = 'SuperAdmin' | 'CompanyAdmin' | 'HotelAdmin' | 'DeptAdmin';
 
 interface HotelOption {
-  hotelName: string
-  branchId: number | null
-  usrSystemCompanyId: string | null
+  hotelName: string;
+  branchId: number | null;
+  usrSystemCompanyId: string | null;
 }
 
 interface UserModalProps {
-  open: boolean
-  onClose: () => void
-  user: UserRow | null
-  onSaved: () => void
+  open: boolean;
+  onClose: () => void;
+  user: UserRow | null;
+  onSaved: () => void;
 }
 
 const ROLES: { value: Role; label: string }[] = [
@@ -24,199 +24,196 @@ const ROLES: { value: Role; label: string }[] = [
   { value: 'CompanyAdmin', label: 'Company Admin' },
   { value: 'HotelAdmin', label: 'Hotel Admin' },
   { value: 'DeptAdmin', label: 'Dept Admin' },
-]
+];
 
 const inputCls =
-  'w-full border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
+  'w-full border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
 
-const labelCls = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'
+const labelCls = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1';
 
 export default function UserModal({ open, onClose, user, onSaved }: UserModalProps) {
-  const isEdit = user !== null
+  const isEdit = user !== null;
 
   // ── Form state ──────────────────────────────────────────────────────────
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [role, setRole] = useState<Role>('DeptAdmin')
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState<Role>('DeptAdmin');
 
   // ── Assignment state ────────────────────────────────────────────────────
-  const [tenants, setTenants] = useState<string[]>([])
-  const [availableTenants, setAvailableTenants] = useState<string[]>([])
+  const [tenants, setTenants] = useState<string[]>([]);
+  const [availableTenants, setAvailableTenants] = useState<string[]>([]);
 
-  const [selectedTenant, setSelectedTenant] = useState('')
-  const [availableHotels, setAvailableHotels] = useState<HotelOption[]>([])
-  const [selectedHotels, setSelectedHotels] = useState<{ tenant: string; hotelName: string }[]>([])
+  const [selectedTenant, setSelectedTenant] = useState('');
+  const [availableHotels, setAvailableHotels] = useState<HotelOption[]>([]);
+  const [selectedHotels, setSelectedHotels] = useState<{ tenant: string; hotelName: string }[]>([]);
 
-  const [selectedHotelForDepts, setSelectedHotelForDepts] = useState('')
-  const [selectedHotelUsrSystemCompanyId, setSelectedHotelUsrSystemCompanyId] = useState('')
-  const [availableDepts, setAvailableDepts] = useState<string[]>([])
+  const [selectedHotelForDepts, setSelectedHotelForDepts] = useState('');
+  const [selectedHotelUsrSystemCompanyId, setSelectedHotelUsrSystemCompanyId] = useState('');
+  const [availableDepts, setAvailableDepts] = useState<string[]>([]);
   const [selectedDepts, setSelectedDepts] = useState<
     { tenant: string; hotelName: string; deptName: string }[]
-  >([])
+  >([]);
 
   // ── Loader / error ─────────────────────────────────────────────────────
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const [loadingTenants, setLoadingTenants] = useState(false)
-  const [loadingHotels, setLoadingHotels] = useState(false)
-  const [loadingDepts, setLoadingDepts] = useState(false)
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [loadingTenants, setLoadingTenants] = useState(false);
+  const [loadingHotels, setLoadingHotels] = useState(false);
+  const [loadingDepts, setLoadingDepts] = useState(false);
 
   // ── Populate form when opening ─────────────────────────────────────────
   useEffect(() => {
-    if (!open) return
-    setError('')
-    setSaving(false)
-    setPassword('')
+    if (!open) return;
+    setError('');
+    setSaving(false);
+    setPassword('');
     if (user) {
-      setFirstName(user.firstName)
-      setLastName(user.lastName)
-      setEmail(user.email)
-      setRole(user.role as Role)
-      setTenants(user.tenants.map((t) => t.tenant))
-      setSelectedHotels(user.hotels.map((h) => ({ tenant: h.tenant, hotelName: h.hotelName })))
+      setFirstName(user.firstName);
+      setLastName(user.lastName);
+      setEmail(user.email);
+      setRole(user.role as Role);
+      setTenants(user.tenants.map((t) => t.tenant));
+      setSelectedHotels(user.hotels.map((h) => ({ tenant: h.tenant, hotelName: h.hotelName })));
       setSelectedDepts(
         user.departments.map((d) => ({
           tenant: d.tenant,
           hotelName: d.hotelName,
           deptName: d.deptName,
-        }))
-      )
+        })),
+      );
     } else {
-      setFirstName('')
-      setLastName('')
-      setEmail('')
-      setRole('DeptAdmin')
-      setTenants([])
-      setSelectedHotels([])
-      setSelectedDepts([])
+      setFirstName('');
+      setLastName('');
+      setEmail('');
+      setRole('DeptAdmin');
+      setTenants([]);
+      setSelectedHotels([]);
+      setSelectedDepts([]);
     }
-    setSelectedTenant('')
-    setSelectedHotelForDepts('')
-    setSelectedHotelUsrSystemCompanyId('')
-    setAvailableHotels([])
-    setAvailableDepts([])
-  }, [open, user])
+    setSelectedTenant('');
+    setSelectedHotelForDepts('');
+    setSelectedHotelUsrSystemCompanyId('');
+    setAvailableHotels([]);
+    setAvailableDepts([]);
+  }, [open, user]);
 
   // ── Fetch tenants when modal opens with a non-SuperAdmin role ──────────
   useEffect(() => {
-    if (!open || role === 'SuperAdmin') return
-    let cancelled = false
+    if (!open || role === 'SuperAdmin') return;
+    let cancelled = false;
     const fetchTenants = async () => {
-      setLoadingTenants(true)
+      setLoadingTenants(true);
       try {
-        const res = await fetch('/api/tenants')
-        if (!res.ok) throw new Error('Failed to fetch tenants')
-        const data: string[] = await res.json()
-        if (!cancelled) setAvailableTenants(data)
+        const res = await fetch('/api/tenants');
+        if (!res.ok) throw new Error('Failed to fetch tenants');
+        const data: string[] = await res.json();
+        if (!cancelled) setAvailableTenants(data);
       } catch {
-        if (!cancelled) setAvailableTenants([])
+        if (!cancelled) setAvailableTenants([]);
       } finally {
-        if (!cancelled) setLoadingTenants(false)
+        if (!cancelled) setLoadingTenants(false);
       }
-    }
-    fetchTenants()
+    };
+    fetchTenants();
     return () => {
-      cancelled = true
-    }
-  }, [open, role])
+      cancelled = true;
+    };
+  }, [open, role]);
 
   // ── Fetch hotels when a tenant is selected (for HotelAdmin / DeptAdmin) ─
   const fetchHotels = useCallback(async (tenant: string) => {
     if (!tenant) {
-      setAvailableHotels([])
-      return
+      setAvailableHotels([]);
+      return;
     }
-    setLoadingHotels(true)
+    setLoadingHotels(true);
     try {
-      const res = await fetch(`/api/hotels/${encodeURIComponent(tenant)}`)
-      if (!res.ok) throw new Error('Failed to fetch hotels')
-      const data: HotelOption[] = await res.json()
-      setAvailableHotels(data)
+      const res = await fetch(`/api/hotels/${encodeURIComponent(tenant)}`);
+      if (!res.ok) throw new Error('Failed to fetch hotels');
+      const data: HotelOption[] = await res.json();
+      setAvailableHotels(data);
     } catch {
-      setAvailableHotels([])
+      setAvailableHotels([]);
     } finally {
-      setLoadingHotels(false)
+      setLoadingHotels(false);
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
     if (role === 'HotelAdmin' || role === 'DeptAdmin') {
-      fetchHotels(selectedTenant)
+      fetchHotels(selectedTenant);
     }
-  }, [selectedTenant, role, fetchHotels])
+  }, [selectedTenant, role, fetchHotels]);
 
   // ── Fetch departments when a hotel is selected (DeptAdmin) ─────────────
-  const fetchDepartments = useCallback(
-    async (hotelName: string, usrSystemCompanyId: string) => {
-      if (!hotelName || !usrSystemCompanyId) {
-        setAvailableDepts([])
-        return
-      }
-      setLoadingDepts(true)
-      try {
-        const params = new URLSearchParams({ hotel: hotelName, usrSystemCompanyId })
-        const res = await fetch(`/api/departments?${params.toString()}`)
-        if (!res.ok) throw new Error('Failed to fetch departments')
-        const data: string[] = await res.json()
-        setAvailableDepts(data)
-      } catch {
-        setAvailableDepts([])
-      } finally {
-        setLoadingDepts(false)
-      }
-    },
-    []
-  )
+  const fetchDepartments = useCallback(async (hotelName: string, usrSystemCompanyId: string) => {
+    if (!hotelName || !usrSystemCompanyId) {
+      setAvailableDepts([]);
+      return;
+    }
+    setLoadingDepts(true);
+    try {
+      const params = new URLSearchParams({ hotel: hotelName, usrSystemCompanyId });
+      const res = await fetch(`/api/departments?${params.toString()}`);
+      if (!res.ok) throw new Error('Failed to fetch departments');
+      const data: string[] = await res.json();
+      setAvailableDepts(data);
+    } catch {
+      setAvailableDepts([]);
+    } finally {
+      setLoadingDepts(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (role === 'DeptAdmin') {
-      fetchDepartments(selectedHotelForDepts, selectedHotelUsrSystemCompanyId)
+      fetchDepartments(selectedHotelForDepts, selectedHotelUsrSystemCompanyId);
     }
-  }, [selectedHotelForDepts, selectedHotelUsrSystemCompanyId, role, fetchDepartments])
+  }, [selectedHotelForDepts, selectedHotelUsrSystemCompanyId, role, fetchDepartments]);
 
   // ── Tenant checkbox toggle (CompanyAdmin) ──────────────────────────────
   const toggleTenant = (t: string) => {
-    setTenants((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]))
-  }
+    setTenants((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
+  };
 
   // ── Hotel checkbox toggle (HotelAdmin) ─────────────────────────────────
   const toggleHotel = (tenant: string, hotelName: string) => {
     setSelectedHotels((prev) => {
-      const exists = prev.some((h) => h.tenant === tenant && h.hotelName === hotelName)
-      if (exists) return prev.filter((h) => !(h.tenant === tenant && h.hotelName === hotelName))
-      return [...prev, { tenant, hotelName }]
-    })
-  }
+      const exists = prev.some((h) => h.tenant === tenant && h.hotelName === hotelName);
+      if (exists) return prev.filter((h) => !(h.tenant === tenant && h.hotelName === hotelName));
+      return [...prev, { tenant, hotelName }];
+    });
+  };
 
   // ── Dept checkbox toggle (DeptAdmin) ───────────────────────────────────
   const toggleDept = (tenant: string, hotelName: string, deptName: string) => {
     setSelectedDepts((prev) => {
       const exists = prev.some(
-        (d) => d.tenant === tenant && d.hotelName === hotelName && d.deptName === deptName
-      )
+        (d) => d.tenant === tenant && d.hotelName === hotelName && d.deptName === deptName,
+      );
       if (exists)
         return prev.filter(
-          (d) => !(d.tenant === tenant && d.hotelName === hotelName && d.deptName === deptName)
-        )
-      return [...prev, { tenant, hotelName, deptName }]
-    })
-  }
+          (d) => !(d.tenant === tenant && d.hotelName === hotelName && d.deptName === deptName),
+        );
+      return [...prev, { tenant, hotelName, deptName }];
+    });
+  };
 
   // ── Submit ─────────────────────────────────────────────────────────────
   const handleSave = async () => {
-    setError('')
+    setError('');
     if (!firstName.trim() || !lastName.trim() || !email.trim()) {
-      setError('First name, last name and email are required.')
-      return
+      setError('First name, last name and email are required.');
+      return;
     }
     if (!isEdit && !password) {
-      setError('Password is required for new users.')
-      return
+      setError('Password is required for new users.');
+      return;
     }
 
-    setSaving(true)
+    setSaving(true);
     try {
       const body: Record<string, unknown> = {
         firstName: firstName.trim(),
@@ -226,33 +223,33 @@ export default function UserModal({ open, onClose, user, onSaved }: UserModalPro
         tenants: role === 'CompanyAdmin' ? tenants : [],
         hotels: role === 'HotelAdmin' ? selectedHotels : [],
         departments: role === 'DeptAdmin' ? selectedDepts : [],
-      }
+      };
       if (password) {
-        body.password = password
+        body.password = password;
       }
 
-      const url = isEdit ? `/api/users/${user.userId}` : '/api/users'
-      const method = isEdit ? 'PUT' : 'POST'
+      const url = isEdit ? `/api/users/${user.userId}` : '/api/users';
+      const method = isEdit ? 'PUT' : 'POST';
 
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-      })
+      });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error ?? `Failed to ${isEdit ? 'update' : 'create'} user`)
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? `Failed to ${isEdit ? 'update' : 'create'} user`);
       }
 
-      onSaved()
-      onClose()
+      onSaved();
+      onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred')
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   // ── Render ─────────────────────────────────────────────────────────────
   const footer = (
@@ -271,7 +268,7 @@ export default function UserModal({ open, onClose, user, onSaved }: UserModalPro
         {saving ? 'Saving...' : isEdit ? 'Update User' : 'Create User'}
       </button>
     </>
-  )
+  );
 
   return (
     <Modal
@@ -437,8 +434,7 @@ export default function UserModal({ open, onClose, user, onSaved }: UserModalPro
                                   type="checkbox"
                                   checked={selectedHotels.some(
                                     (sh) =>
-                                      sh.tenant === selectedTenant &&
-                                      sh.hotelName === h.hotelName
+                                      sh.tenant === selectedTenant && sh.hotelName === h.hotelName,
                                   )}
                                   onChange={() => toggleHotel(selectedTenant, h.hotelName)}
                                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -485,10 +481,10 @@ export default function UserModal({ open, onClose, user, onSaved }: UserModalPro
                       <select
                         value={selectedTenant}
                         onChange={(e) => {
-                          setSelectedTenant(e.target.value)
-                          setSelectedHotelForDepts('')
-                          setSelectedHotelUsrSystemCompanyId('')
-                          setAvailableDepts([])
+                          setSelectedTenant(e.target.value);
+                          setSelectedHotelForDepts('');
+                          setSelectedHotelUsrSystemCompanyId('');
+                          setAvailableDepts([]);
                         }}
                         className={inputCls}
                       >
@@ -512,14 +508,14 @@ export default function UserModal({ open, onClose, user, onSaved }: UserModalPro
                           <select
                             value={selectedHotelForDepts}
                             onChange={(e) => {
-                              const hotelName = e.target.value
-                              setSelectedHotelForDepts(hotelName)
+                              const hotelName = e.target.value;
+                              setSelectedHotelForDepts(hotelName);
                               const hotelOption = availableHotels.find(
-                                (h) => h.hotelName === hotelName
-                              )
+                                (h) => h.hotelName === hotelName,
+                              );
                               setSelectedHotelUsrSystemCompanyId(
-                                hotelOption?.usrSystemCompanyId ?? ''
-                              )
+                                hotelOption?.usrSystemCompanyId ?? '',
+                              );
                             }}
                             className={inputCls}
                           >
@@ -558,7 +554,7 @@ export default function UserModal({ open, onClose, user, onSaved }: UserModalPro
                                     (d) =>
                                       d.tenant === selectedTenant &&
                                       d.hotelName === selectedHotelForDepts &&
-                                      d.deptName === dept
+                                      d.deptName === dept,
                                   )}
                                   onChange={() =>
                                     toggleDept(selectedTenant, selectedHotelForDepts, dept)
@@ -604,5 +600,5 @@ export default function UserModal({ open, onClose, user, onSaved }: UserModalPro
         )}
       </div>
     </Modal>
-  )
+  );
 }

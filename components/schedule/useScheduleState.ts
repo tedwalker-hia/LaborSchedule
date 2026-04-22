@@ -1,56 +1,56 @@
-'use client'
+'use client';
 
-import { useState, useCallback, useMemo } from 'react'
-import { format, addDays, subDays } from 'date-fns'
-import { calcHours } from '@/lib/schedule-utils'
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { format, addDays, subDays } from 'date-fns';
+import { calcHours } from '@/lib/schedule-utils';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 export interface ScheduleEmployee {
-  code: string
-  firstName: string
-  lastName: string
-  deptName: string
-  multiDept: boolean
-  positionName: string
+  code: string;
+  firstName: string;
+  lastName: string;
+  deptName: string;
+  multiDept: boolean;
+  positionName: string;
 }
 
 export interface ScheduleEntry {
-  clockIn: string
-  clockOut: string
-  hours: number
-  locked: boolean
+  clockIn: string;
+  clockOut: string;
+  hours: number;
+  locked: boolean;
 }
 
 export interface ScheduleChange {
-  clockIn?: string
-  clockOut?: string
-  hours?: number
+  clockIn?: string;
+  clockOut?: string;
+  hours?: number;
 }
 
 export interface ScheduleData {
-  dates: string[]
-  employees: ScheduleEmployee[]
-  schedule: Record<string, Record<string, ScheduleEntry>>
-  allDepts: string[]
-  allPositions: string[]
-  positionsByDept: Record<string, string[]>
+  dates: string[];
+  employees: ScheduleEmployee[];
+  schedule: Record<string, Record<string, ScheduleEntry>>;
+  allDepts: string[];
+  allPositions: string[];
+  positionsByDept: Record<string, string[]>;
 }
 
 export interface FilterState {
-  tenant: string
-  hotel: string
-  hotelInfo: { name: string; branchId: number; usrSystemCompanyId: string } | null
-  department: string
-  position: string
-  startDate: string
-  endDate: string
+  tenant: string;
+  hotel: string;
+  hotelInfo: { hotelName: string; branchId: number; usrSystemCompanyId: string } | null;
+  department: string;
+  position: string;
+  startDate: string;
+  endDate: string;
 }
 
 export interface HotelOption {
-  name: string
-  branchId: number
-  usrSystemCompanyId: string
+  hotelName: string;
+  branchId: number | null;
+  usrSystemCompanyId: string | null;
 }
 
 // ── Hook ───────────────────────────────────────────────────────────────────────
@@ -65,158 +65,178 @@ export function useScheduleState() {
     position: '',
     startDate: '',
     endDate: '',
-  })
+  });
 
   // Data state
-  const [data, setData] = useState<ScheduleData | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [data, setData] = useState<ScheduleData | null>(null);
+  const [loading, setLoading] = useState(false);
 
   // Change tracking — keyed by `${empCode}|${date}`
-  const [changes, setChanges] = useState<Record<string, ScheduleChange>>({})
+  const [changes, setChanges] = useState<Record<string, ScheduleChange>>({});
 
   // Selection
-  const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(new Set())
+  const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(new Set());
 
   // Dropdown options
-  const [tenants, setTenants] = useState<string[]>([])
-  const [hotels, setHotels] = useState<HotelOption[]>([])
-  const [departments, setDepartments] = useState<string[]>([])
-  const [positions, setPositions] = useState<string[]>([])
+  const [tenants, setTenants] = useState<string[]>([]);
+  const [hotels, setHotels] = useState<HotelOption[]>([]);
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [positions, setPositions] = useState<string[]>([]);
 
   // ── Loaders ────────────────────────────────────────────────────────────────
 
   const loadTenants = useCallback(async () => {
     try {
-      const res = await fetch('/api/tenants')
-      if (!res.ok) throw new Error('Failed to load tenants')
-      const json = await res.json()
-      setTenants(json.tenants ?? json)
+      const res = await fetch('/api/tenants');
+      if (!res.ok) throw new Error('Failed to load tenants');
+      const json = await res.json();
+      setTenants(json.tenants ?? json);
     } catch (err) {
-      console.error('loadTenants error:', err)
+      console.error('loadTenants error:', err);
     }
-  }, [])
+  }, []);
 
   const loadHotels = useCallback(async (tenant: string) => {
     try {
-      const res = await fetch(`/api/hotels/${encodeURIComponent(tenant)}`)
-      if (!res.ok) throw new Error('Failed to load hotels')
-      const json = await res.json()
-      setHotels(json.hotels ?? json)
+      const res = await fetch(`/api/hotels/${encodeURIComponent(tenant)}`);
+      if (!res.ok) throw new Error('Failed to load hotels');
+      const json = await res.json();
+      setHotels(json.hotels ?? json);
     } catch (err) {
-      console.error('loadHotels error:', err)
+      console.error('loadHotels error:', err);
     }
-  }, [])
+  }, []);
 
   const loadDepartments = useCallback(async () => {
+    if (!filters.hotelInfo) return;
     try {
-      const res = await fetch('/api/departments')
-      if (!res.ok) throw new Error('Failed to load departments')
-      const json = await res.json()
-      setDepartments(json.departments ?? json)
+      const params = new URLSearchParams({
+        hotel: filters.hotel,
+        usrSystemCompanyId: filters.hotelInfo.usrSystemCompanyId,
+      });
+      const res = await fetch(`/api/departments?${params.toString()}`);
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`Failed to load departments (${res.status}): ${body}`);
+      }
+      const json = await res.json();
+      setDepartments(json.departments ?? json);
     } catch (err) {
-      console.error('loadDepartments error:', err)
+      console.error('loadDepartments error:', err);
     }
-  }, [])
+  }, [filters.hotel, filters.hotelInfo]);
 
   const loadPositions = useCallback(async () => {
+    if (!filters.hotelInfo) return;
     try {
-      const res = await fetch('/api/positions')
-      if (!res.ok) throw new Error('Failed to load positions')
-      const json = await res.json()
-      setPositions(json.positions ?? json)
+      const params = new URLSearchParams({
+        hotel: filters.hotel,
+        usrSystemCompanyId: filters.hotelInfo.usrSystemCompanyId,
+      });
+      if (filters.department) params.set('dept', filters.department);
+      const res = await fetch(`/api/positions?${params.toString()}`);
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`Failed to load positions (${res.status}): ${body}`);
+      }
+      const json = await res.json();
+      setPositions(json.positions ?? json);
     } catch (err) {
-      console.error('loadPositions error:', err)
+      console.error('loadPositions error:', err);
     }
-  }, [])
+  }, [filters.hotel, filters.hotelInfo, filters.department]);
 
   const loadSchedule = useCallback(async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const today = new Date()
-      const startDate = filters.startDate || format(subDays(today, 7), 'yyyy-MM-dd')
-      const endDate = filters.endDate || format(addDays(today, 7), 'yyyy-MM-dd')
+      const today = new Date();
+      const startDate = filters.startDate || format(subDays(today, 7), 'yyyy-MM-dd');
+      const endDate = filters.endDate || format(addDays(today, 7), 'yyyy-MM-dd');
 
-      const params = new URLSearchParams()
-      if (filters.tenant) params.set('tenant', filters.tenant)
-      if (filters.hotel) params.set('hotel', filters.hotel)
+      const params = new URLSearchParams();
+      if (filters.tenant) params.set('tenant', filters.tenant);
+      if (filters.hotel) params.set('hotel', filters.hotel);
       if (filters.hotelInfo) {
-        params.set('branchId', String(filters.hotelInfo.branchId))
-        params.set('usrSystemCompanyId', filters.hotelInfo.usrSystemCompanyId)
+        params.set('branchId', String(filters.hotelInfo.branchId));
+        params.set('usrSystemCompanyId', filters.hotelInfo.usrSystemCompanyId);
       }
-      if (filters.department) params.set('department', filters.department)
-      if (filters.position) params.set('position', filters.position)
-      params.set('startDate', startDate)
-      params.set('endDate', endDate)
+      if (filters.department) params.set('department', filters.department);
+      if (filters.position) params.set('position', filters.position);
+      params.set('startDate', startDate);
+      params.set('endDate', endDate);
 
-      const res = await fetch(`/api/schedule?${params.toString()}`)
-      if (!res.ok) throw new Error('Failed to load schedule')
-      const json: ScheduleData = await res.json()
-      setData(json)
-      setChanges({})
-      setSelectedEmployees(new Set())
+      const res = await fetch(`/api/schedule?${params.toString()}`);
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`Failed to load schedule (${res.status}): ${body}`);
+      }
+      const json: ScheduleData = await res.json();
+      setData(json);
+      setChanges({});
+      setSelectedEmployees(new Set());
     } catch (err) {
-      console.error('loadSchedule error:', err)
+      console.error('loadSchedule error:', err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [filters])
+  }, [filters]);
 
   // ── Change tracking ────────────────────────────────────────────────────────
 
   const recordChange = useCallback(
     (empCode: string, date: string, field: string, value: string | number) => {
       setChanges((prev) => {
-        const key = `${empCode}|${date}`
-        const existing = prev[key] ?? {}
-        const updated = { ...existing, [field]: value } as ScheduleChange
+        const key = `${empCode}|${date}`;
+        const existing = prev[key] ?? {};
+        const updated = { ...existing, [field]: value } as ScheduleChange;
 
         // Auto-calc hours when both clock times are available
         if (field === 'clockIn' || field === 'clockOut') {
-          const clockIn = field === 'clockIn' ? (value as string) : updated.clockIn
-          const clockOut = field === 'clockOut' ? (value as string) : updated.clockOut
+          const clockIn = field === 'clockIn' ? (value as string) : updated.clockIn;
+          const clockOut = field === 'clockOut' ? (value as string) : updated.clockOut;
 
           // Fall back to original data if one side is missing from changes
-          const origEntry = data?.schedule?.[empCode]?.[date]
-          const effectiveIn = clockIn ?? origEntry?.clockIn
-          const effectiveOut = clockOut ?? origEntry?.clockOut
+          const origEntry = data?.schedule?.[empCode]?.[date];
+          const effectiveIn = clockIn ?? origEntry?.clockIn;
+          const effectiveOut = clockOut ?? origEntry?.clockOut;
 
           if (effectiveIn && effectiveOut) {
-            const hrs = calcHours(effectiveIn, effectiveOut)
+            const hrs = calcHours(effectiveIn, effectiveOut);
             if (hrs !== null) {
-              updated.hours = hrs
+              updated.hours = hrs;
             }
           }
         }
 
-        return { ...prev, [key]: updated }
-      })
+        return { ...prev, [key]: updated };
+      });
     },
     [data],
-  )
+  );
 
   const getEffectiveValue = useCallback(
     (empCode: string, date: string, field: string): string | number => {
-      const key = `${empCode}|${date}`
-      const change = changes[key]
-      const f = field as keyof ScheduleChange
+      const key = `${empCode}|${date}`;
+      const change = changes[key];
+      const f = field as keyof ScheduleChange;
       if (change && change[f] !== undefined) {
-        return change[f] as string | number
+        return change[f] as string | number;
       }
-      const entry = data?.schedule?.[empCode]?.[date]
+      const entry = data?.schedule?.[empCode]?.[date];
       if (entry) {
-        return entry[field as keyof ScheduleEntry] as string | number
+        return entry[field as keyof ScheduleEntry] as string | number;
       }
-      return ''
+      return '';
     },
     [changes, data],
-  )
+  );
 
   const discardChanges = useCallback(() => {
-    setChanges({})
-  }, [])
+    setChanges({});
+  }, []);
 
   const saveChanges = useCallback(async () => {
-    setLoading(true)
+    setLoading(true);
     try {
       const res = await fetch('/api/schedule/save', {
         method: 'POST',
@@ -227,43 +247,64 @@ export function useScheduleState() {
           hotelInfo: filters.hotelInfo,
           changes,
         }),
-      })
-      if (!res.ok) throw new Error('Failed to save changes')
+      });
+      if (!res.ok) throw new Error('Failed to save changes');
       // Reload schedule after successful save
-      await loadSchedule()
+      await loadSchedule();
     } catch (err) {
-      console.error('saveChanges error:', err)
+      console.error('saveChanges error:', err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [changes, filters, loadSchedule])
+  }, [changes, filters, loadSchedule]);
 
   // ── Selection ──────────────────────────────────────────────────────────────
 
   const toggleEmployee = useCallback((empCode: string) => {
     setSelectedEmployees((prev) => {
-      const next = new Set(prev)
+      const next = new Set(prev);
       if (next.has(empCode)) {
-        next.delete(empCode)
+        next.delete(empCode);
       } else {
-        next.add(empCode)
+        next.add(empCode);
       }
-      return next
-    })
-  }, [])
+      return next;
+    });
+  }, []);
 
   const selectAllEmployees = useCallback(() => {
-    if (!data) return
-    setSelectedEmployees(new Set(data.employees.map((e) => e.code)))
-  }, [data])
+    if (!data) return;
+    setSelectedEmployees(new Set(data.employees.map((e) => e.code)));
+  }, [data]);
 
   const deselectAllEmployees = useCallback(() => {
-    setSelectedEmployees(new Set())
-  }, [])
+    setSelectedEmployees(new Set());
+  }, []);
+
+  // ── Auto-load on filter change ────────────────────────────────────────────
+
+  useEffect(() => {
+    if (filters.hotelInfo) loadDepartments();
+  }, [filters.hotelInfo, loadDepartments]);
+
+  useEffect(() => {
+    if (filters.hotelInfo) loadPositions();
+  }, [filters.hotelInfo, filters.department, loadPositions]);
+
+  useEffect(() => {
+    if (filters.hotelInfo) loadSchedule();
+  }, [
+    filters.hotelInfo,
+    filters.department,
+    filters.position,
+    filters.startDate,
+    filters.endDate,
+    loadSchedule,
+  ]);
 
   // ── Computed ───────────────────────────────────────────────────────────────
 
-  const hasChanges = useMemo(() => Object.keys(changes).length > 0, [changes])
+  const hasChanges = useMemo(() => Object.keys(changes).length > 0, [changes]);
 
   // ── Return ─────────────────────────────────────────────────────────────────
 
@@ -302,5 +343,5 @@ export function useScheduleState() {
     loadDepartments,
     loadPositions,
     loadSchedule,
-  }
+  };
 }
