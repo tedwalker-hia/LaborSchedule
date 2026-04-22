@@ -143,9 +143,7 @@ function assertRoundTrip(results: CellResult[]): void {
     }
 
     if (actual.result === undefined) {
-      throw new Error(
-        `FAIL: ${expected.cell} — cached result not preserved after round-trip`,
-      );
+      throw new Error(`FAIL: ${expected.cell} — cached result not preserved after round-trip`);
     }
     if (Math.abs(actual.result - expected.result) > EPSILON) {
       throw new Error(

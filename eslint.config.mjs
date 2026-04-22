@@ -7,7 +7,15 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default tseslint.config(
   {
-    ignores: ['.next/**', 'node_modules/**', 'prisma/migrations/**', 'public/**', 'next-env.d.ts'],
+    ignores: [
+      '.next/**',
+      'node_modules/**',
+      'prisma/migrations/**',
+      'public/**',
+      'next-env.d.ts',
+      'tests/spikes/**',
+      'scripts/check-excel-verdict.ts',
+    ],
   },
   ...tseslint.configs.recommended,
   {

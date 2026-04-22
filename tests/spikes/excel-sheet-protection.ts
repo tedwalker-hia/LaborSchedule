@@ -187,9 +187,7 @@ async function main(): Promise<void> {
   await unlink(OUT_PATH);
 
   console.log('');
-  console.log(
-    'RESULT: PASS — exceljs preserves sheet protection with per-cell locked overrides',
-  );
+  console.log('RESULT: PASS — exceljs preserves sheet protection with per-cell locked overrides');
 }
 
 main().catch((err: unknown) => {

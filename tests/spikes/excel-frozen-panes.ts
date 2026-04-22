@@ -101,19 +101,13 @@ async function readBackFrozenPane(buf: Buffer): Promise<FrozenPaneResult> {
 
 function assertFrozenPane(result: FrozenPaneResult): void {
   if (result.state !== FROZEN_PANE.state) {
-    throw new Error(
-      `FAIL: view.state — expected "${FROZEN_PANE.state}", got "${result.state}"`,
-    );
+    throw new Error(`FAIL: view.state — expected "${FROZEN_PANE.state}", got "${result.state}"`);
   }
   if (result.xSplit !== FROZEN_PANE.xSplit) {
-    throw new Error(
-      `FAIL: view.xSplit — expected ${FROZEN_PANE.xSplit}, got ${result.xSplit}`,
-    );
+    throw new Error(`FAIL: view.xSplit — expected ${FROZEN_PANE.xSplit}, got ${result.xSplit}`);
   }
   if (result.ySplit !== FROZEN_PANE.ySplit) {
-    throw new Error(
-      `FAIL: view.ySplit — expected ${FROZEN_PANE.ySplit}, got ${result.ySplit}`,
-    );
+    throw new Error(`FAIL: view.ySplit — expected ${FROZEN_PANE.ySplit}, got ${result.ySplit}`);
   }
   if (result.topLeftCell !== FROZEN_PANE.topLeftCell) {
     throw new Error(
