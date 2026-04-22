@@ -1,15 +1,23 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import bcrypt from 'bcryptjs';
 import { SignJWT } from 'jose';
 import { config } from '@/lib/config';
 import { LoginBodySchema } from '@/lib/schemas/user';
+import { checkLogin } from '@/lib/rate-limit';
+import { verify, hash, needsUpgrade } from '@/lib/auth/hash';
+import logger from '@/lib/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const JWT_SECRET = new TextEncoder().encode(config.JWT_SECRET);
+
+function getClientIp(request: NextRequest): string {
+  const forwarded = request.headers.get('x-forwarded-for');
+  if (forwarded) return (forwarded.split(',')[0] ?? forwarded).trim();
+  return request.headers.get('x-real-ip') ?? '127.0.0.1';
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,6 +26,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ issues: parsed.error.issues }, { status: 400 });
     }
     const { email, password } = parsed.data;
+
+    const ip = getClientIp(request);
+    const rateLimit = await checkLogin(ip, email);
+    if (!rateLimit.allowed) {
+      const retryAfterS = Math.ceil((rateLimit.retryAfterMs ?? 60_000) / 1000);
+      return NextResponse.json(
+        { error: 'Too many login attempts. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(retryAfterS) } },
+      );
+    }
 
     // SQL Server collation is case-insensitive by default, so direct match works
     const user = await prisma.user.findFirst({
@@ -38,9 +56,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const validPassword = await bcrypt.compare(password, user.passwordHash);
+    const validPassword = await verify(password, user.passwordHash);
     if (!validPassword) {
       return NextResponse.json({ error: 'Invalid email or password.' }, { status: 401 });
+    }
+
+    if (needsUpgrade(user.passwordHash)) {
+      const upgraded = await hash(password);
+      await prisma.user.update({
+        where: { userId: user.userId },
+        data: { passwordHash: upgraded },
+      });
     }
 
     const token = await new SignJWT({
@@ -78,7 +104,7 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (error) {
-    console.error('Login error:', error);
+    logger.error({ err: error }, 'Login error');
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

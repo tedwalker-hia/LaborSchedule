@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import { SignJWT } from 'jose';
 import { config } from '@/lib/config';
 import { ChangePasswordBodySchema } from '@/lib/schemas/user';
+import logger from '@/lib/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (error) {
-    console.error('Change password error:', error);
+    logger.error({ err: error }, 'Change password error');
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { makeScheduleService } from '@/lib/services/schedule-service';
 import { SaveBodySchema } from '@/lib/schemas/schedule';
+import logger from '@/lib/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
     const result = await svc.save(parsed.data);
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Schedule save error:', error);
+    logger.error({ err: error }, 'Schedule save error');
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

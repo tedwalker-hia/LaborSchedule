@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import logger from '@/lib/logger';
 
 interface DomainError extends Error {
   statusHint: number;
@@ -12,6 +13,6 @@ export function mapErrorResponse(error: unknown, label: string): NextResponse {
   if (isDomainError(error)) {
     return NextResponse.json({ error: error.message }, { status: error.statusHint });
   }
-  console.error(`${label}:`, error);
+  logger.error({ err: error }, label);
   return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
 }

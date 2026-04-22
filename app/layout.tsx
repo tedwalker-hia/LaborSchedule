@@ -1,11 +1,18 @@
 import type { Metadata } from 'next';
+import { cookies } from 'next/headers';
 import { Toaster } from 'react-hot-toast';
+import { CSRF_COOKIE } from '@/lib/csrf';
 import './globals.css';
 
-export const metadata: Metadata = {
-  title: 'Labor Schedule Editor',
-  description: 'Labor scheduling and management system',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const jar = await cookies();
+  const csrfToken = jar.get(CSRF_COOKIE)?.value;
+  return {
+    title: 'Labor Schedule Editor',
+    description: 'Labor scheduling and management system',
+    ...(csrfToken ? { other: { csrf: csrfToken } } : {}),
+  };
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import logger from '@/lib/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(positions);
   } catch (error) {
-    console.error('Positions API error:', error);
+    logger.error({ err: error }, 'Positions API error');
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

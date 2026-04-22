@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { makeGenerationService } from '@/lib/services/generation-service';
 import { GenerateBodySchema } from '@/lib/schemas/schedule';
+import logger from '@/lib/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Schedule generate error:', error);
+    logger.error({ err: error }, 'Schedule generate error');
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

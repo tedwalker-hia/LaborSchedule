@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 
 export interface User {
   userId: number;
@@ -29,45 +29,28 @@ function getCookie(name: string): string | null {
   return null;
 }
 
-function parseJWT(token: string): Record<string, unknown> | null {
-  try {
-    const base64Url = token.split('.')[1]!;
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join(''),
-    );
-    return JSON.parse(jsonPayload);
-  } catch {
-    return null;
-  }
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  // Prevents concurrent 401 callbacks from triggering multiple logouts.
+  const loggingOut = useRef(false);
+
+  const logout = useCallback(async () => {
+    if (loggingOut.current) return;
+    loggingOut.current = true;
+    const csrfToken = getCookie('csrf_token');
+    await fetch('/api/auth/logout', {
+      method: 'POST',
+      headers: csrfToken ? { 'x-csrf-token': csrfToken } : {},
+    });
+    setUser(null);
+    window.location.href = '/login';
+  }, []);
 
   const checkAuth = async () => {
     try {
-      const token = getCookie('auth-token');
-      if (token) {
-        const payload = parseJWT(token) as Record<string, unknown> | null;
-        if (payload && (payload.exp as number) > Date.now() / 1000) {
-          setUser({
-            userId: payload.userId as number,
-            email: payload.email as string,
-            firstName: payload.firstName as string,
-            lastName: payload.lastName as string,
-            role: payload.role as User['role'],
-            mustChangePassword: (payload.mustChangePassword as boolean) || false,
-          });
-          setLoading(false);
-          return;
-        }
-      }
-
+      // auth-token is httpOnly so document.cookie cannot access it.
+      // Fall through to /api/auth/me which is protected by the middleware.
       const response = await fetch('/api/auth/me');
       if (response.ok) {
         const userData = await response.json();
@@ -105,15 +88,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { mustChangePassword: false };
   };
 
-  const logout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    setUser(null);
-    window.location.href = '/login';
-  };
-
+  // Initial auth check on mount.
   useEffect(() => {
-    checkAuth();
+    void checkAuth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // JWT expiry timer: read the non-httpOnly auth-exp companion cookie (set by
+  // middleware on every authenticated request) and schedule a forced logout at
+  // that timestamp. Falls back gracefully if the cookie is not yet present —
+  // the 401 interceptor below handles server-detected expiry in that case.
+  useEffect(() => {
+    if (!user) return;
+
+    const expStr = getCookie('auth-exp');
+    if (!expStr) return;
+
+    const exp = parseInt(expStr, 10);
+    if (isNaN(exp)) return;
+
+    const delay = exp * 1000 - Date.now();
+    if (delay <= 0) {
+      void logout();
+      return;
+    }
+
+    const timer = setTimeout(() => void logout(), delay);
+    return () => clearTimeout(timer);
+  }, [user, logout]);
+
+  // Global fetch 401 interceptor: any authenticated API call returning 401
+  // means the server has invalidated the session — force logout immediately.
+  useEffect(() => {
+    if (!user) return;
+
+    const nativeFetch = window.fetch.bind(window);
+
+    window.fetch = async (...args: Parameters<typeof fetch>) => {
+      const response = await nativeFetch(...args);
+      if (response.status === 401 && !loggingOut.current) {
+        loggingOut.current = true;
+        // Use native fetch to avoid recursive interception.
+        void nativeFetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+        setUser(null);
+        window.location.href = '/login';
+      }
+      return response;
+    };
+
+    return () => {
+      window.fetch = nativeFetch;
+    };
+  }, [user]);
 
   return (
     <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>
