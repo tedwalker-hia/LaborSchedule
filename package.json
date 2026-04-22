@@ -11,7 +11,10 @@
     "format:check": "prettier --check .",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "studio": "prisma studio"
+    "studio": "prisma studio",
+    "verify:dockerfile": "bash scripts/verify-no-baked-migrations.sh",
+    "db:dedupe-audit": "bash scripts/run-dedupe-decision.sh",
+    "db:baseline-resolve": "bash scripts/baseline-resolve.sh"
   },
   "dependencies": {
     "@prisma/client": "^6.15.0",

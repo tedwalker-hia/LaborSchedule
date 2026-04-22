@@ -6,3 +6,10 @@ services:
     env_file:
       - .env.local
     restart: unless-stopped
+
+  migrate:
+    build: .
+    command: npx prisma migrate deploy
+    env_file:
+      - .env.local
+    restart: "no"

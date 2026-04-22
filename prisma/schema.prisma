@@ -27,6 +27,15 @@ model LaborSchedule {
   positionName       String?   @map("PositionName") @db.NVarChar(200)
   locked             Boolean?  @default(false) @map("Locked")
 
+  auditLogs LaborScheduleAudit[]
+
+  // Enforced as a filtered unique index (WHERE [PositionName] IS NOT NULL) in migration
+  // 20260422020000_unique_idx_labor_schedule_key — Prisma cannot express filtered indexes,
+  // so the schema.prisma @@unique is a logical annotation; the SQL is authoritative.
+  @@unique([usrSystemCompanyId, employeeCode, scheduleDate, positionName], name: "scheduleKey", map: "UQ_HIALaborSchedules_ScheduleKey")
+  @@index([hotelName, scheduleDate], map: "IX_HIALaborSchedules_HotelSchedule")
+  @@index([usrSystemCompanyId], map: "IX_HIALaborSchedules_UsrSystemCompanyID")
+  @@index([tenant, hotelName, deptName], map: "IX_HIALaborSchedules_TenantHotelDept")
   @@map("HIALaborSchedules")
 }
 
@@ -45,8 +54,25 @@ model User {
   tenants     UserTenant[]
   hotels      UserHotel[]
   departments UserDept[]
+  auditLogs   LaborScheduleAudit[]
 
   @@map("HIALaborSchedulesUsers")
+}
+
+// ─── Audit log for schedule changes (Phase 8 writes) ───────────────────────
+model LaborScheduleAudit {
+  auditId         Int      @id @default(autoincrement()) @map("AuditID")
+  scheduleId      Int      @map("ScheduleID")
+  changedByUserId Int?     @map("ChangedByUserID")
+  changedAt       DateTime @default(now()) @map("ChangedAt") @db.DateTime2
+  action          String   @map("Action") @db.NVarChar(20)
+  oldJson         String?  @map("OldJson") @db.NVarChar(Max)
+  newJson         String?  @map("NewJson") @db.NVarChar(Max)
+
+  schedule  LaborSchedule @relation(fields: [scheduleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  changedBy User?         @relation(fields: [changedByUserId], references: [userId], onDelete: SetNull, onUpdate: NoAction)
+
+  @@map("HIALaborScheduleAudit")
 }
 
 // ─── User → Tenant assignments ──────────────────────────────────────────────
@@ -55,7 +81,7 @@ model UserTenant {
   userId Int    @map("UserID")
   tenant String @map("Tenant") @db.NVarChar(200)
 
-  user User @relation(fields: [userId], references: [userId], onDelete: NoAction, onUpdate: NoAction)
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: NoAction)
 
   @@map("HIALaborSchedulesUserTenants")
 }
@@ -69,7 +95,7 @@ model UserHotel {
   usrSystemCompanyId String? @map("UsrSystemCompanyID") @db.NVarChar(100)
   branchId           Int?    @map("BranchID")
 
-  user User @relation(fields: [userId], references: [userId], onDelete: NoAction, onUpdate: NoAction)
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: NoAction)
 
   @@map("HIALaborSchedulesUserHotels")
 }
@@ -82,7 +108,7 @@ model UserDept {
   hotelName String @map("HotelName") @db.NVarChar(200)
   deptName  String @map("DeptName") @db.NVarChar(200)
 
-  user User @relation(fields: [userId], references: [userId], onDelete: NoAction, onUpdate: NoAction)
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: NoAction)
 
   @@map("HIALaborSchedulesUserDepts")
 }
