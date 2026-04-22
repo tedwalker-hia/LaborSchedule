@@ -71,7 +71,7 @@ export class GenerationService {
   /** Builds one create-data record per qualifying position for a single employee+date. */
   splitByPosition(params: SplitByPositionParams): ScheduleCreateData[] {
     const { scheduleDate, positionHistories } = params;
-    const dow = toMondayBased(scheduleDate.getDay());
+    const dow = toMondayBased(scheduleDate.getUTCDay());
     const records: ScheduleCreateData[] = [];
 
     for (const posHistory of positionHistories) {
@@ -210,7 +210,7 @@ export class GenerationService {
           }
         } else {
           const history = positionHistories[0] ?? simpleWindowsMap.get(empCode)!;
-          const dow = toMondayBased(date.getDay());
+          const dow = toMondayBased(date.getUTCDay());
 
           if (!history.workDays.includes(dow)) continue;
 
