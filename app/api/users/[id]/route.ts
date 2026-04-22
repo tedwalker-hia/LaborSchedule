@@ -5,6 +5,10 @@ import { getUserPermissions } from '@/lib/permissions';
 import { makeUserService } from '@/lib/services/user-service';
 import { mapErrorResponse } from '@/lib/http/map-error';
 import type { UserDetailRow } from '@/lib/repositories/users-repo';
+import { UpdateUserBodySchema } from '@/lib/schemas/user';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -55,37 +59,14 @@ export async function PUT(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await req.json();
-    const {
-      firstName,
-      lastName,
-      email,
-      password,
-      role,
-      tenants = [],
-      hotels = [],
-      departments = [],
-    } = body as {
-      firstName: string;
-      lastName: string;
-      email: string;
-      password?: string;
-      role: Role;
-      tenants: string[];
-      hotels: {
-        tenant: string;
-        hotelName: string;
-        usrSystemCompanyId?: string;
-        branchId?: number;
-      }[];
-      departments: { tenant: string; hotelName: string; deptName: string }[];
-    };
-
-    if (!firstName || !lastName || !email || !role) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    const parsed = UpdateUserBodySchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return NextResponse.json({ issues: parsed.error.issues }, { status: 400 });
     }
+    const { firstName, lastName, email, password, role, tenants, hotels, departments } =
+      parsed.data;
 
-    if (!perms.canManageUser(role)) {
+    if (!perms.canManageUser(role as Role)) {
       return NextResponse.json(
         { error: 'Insufficient permissions to manage this role' },
         { status: 403 },

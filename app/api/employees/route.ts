@@ -3,6 +3,9 @@ import { NextResponse } from 'next/server';
 import { makeScheduleService } from '@/lib/services/schedule-service';
 import { mapErrorResponse } from '@/lib/http/map-error';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   const userId = request.headers.get('x-user-id');
   if (!userId) {

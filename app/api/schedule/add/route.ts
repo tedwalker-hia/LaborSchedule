@@ -2,6 +2,10 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { makeScheduleService } from '@/lib/services/schedule-service';
 import { mapErrorResponse } from '@/lib/http/map-error';
+import { AddBodySchema } from '@/lib/schemas/schedule';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   const userId = request.headers.get('x-user-id');
@@ -9,41 +13,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
-  const {
-    usrSystemCompanyId,
-    branchId,
-    hotel,
-    tenant,
-    employeeCode,
-    firstName,
-    lastName,
-    deptName,
-    positionName,
-    date,
-    clockIn,
-    clockOut,
-  } = await request.json();
-
-  if (!usrSystemCompanyId || !employeeCode || !date) {
-    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+  const parsed = AddBodySchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return NextResponse.json({ issues: parsed.error.issues }, { status: 400 });
   }
 
   try {
     const svc = makeScheduleService();
-    const result = await svc.add({
-      usrSystemCompanyId,
-      branchId,
-      hotel,
-      tenant,
-      employeeCode,
-      firstName,
-      lastName,
-      deptName,
-      positionName,
-      date,
-      clockIn,
-      clockOut,
-    });
+    const result = await svc.add(parsed.data);
     return NextResponse.json({ success: true, id: result.id });
   } catch (error) {
     return mapErrorResponse(error, 'Schedule add error');

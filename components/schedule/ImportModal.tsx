@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import toast from 'react-hot-toast';
 import Modal from '@/components/ui/Modal';
 import type { FilterState } from '@/components/schedule/useScheduleState';
 
@@ -25,8 +26,6 @@ export default function ImportModal({ open, onClose, filters, onComplete }: Impo
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [overwriteLocked, setOverwriteLocked] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [result, setResult] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -35,8 +34,6 @@ export default function ImportModal({ open, onClose, filters, onComplete }: Impo
       setFile(null);
       setPreview(null);
       setOverwriteLocked(false);
-      setError('');
-      setResult('');
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }, [open]);
@@ -44,13 +41,11 @@ export default function ImportModal({ open, onClose, filters, onComplete }: Impo
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0] ?? null;
     setFile(selected);
-    setError('');
   };
 
   const handlePreview = async () => {
     if (!file || !filters.hotelInfo) return;
     setLoading(true);
-    setError('');
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -71,7 +66,7 @@ export default function ImportModal({ open, onClose, filters, onComplete }: Impo
       setPreview(json);
       setStep(2);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Preview failed');
+      toast.error(err instanceof Error ? err.message : 'Preview failed');
     } finally {
       setLoading(false);
     }
@@ -81,7 +76,6 @@ export default function ImportModal({ open, onClose, filters, onComplete }: Impo
     if (!file || !filters.hotelInfo) return;
     setStep(4);
     setLoading(true);
-    setError('');
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -100,19 +94,15 @@ export default function ImportModal({ open, onClose, filters, onComplete }: Impo
         throw new Error(body.error ?? 'Import failed');
       }
       const json = await res.json();
-      setResult(json.message ?? 'Import completed successfully.');
-      setStep(5);
+      toast.success(json.message ?? 'Import completed successfully.');
+      onComplete();
+      onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Import failed');
-      setStep(5);
+      toast.error(err instanceof Error ? err.message : 'Import failed');
+      setStep(3);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleClose = () => {
-    if (step === 5 && result) onComplete();
-    onClose();
   };
 
   const renderStep = () => {
@@ -186,15 +176,6 @@ export default function ImportModal({ open, onClose, filters, onComplete }: Impo
             <p className="text-sm text-gray-600">Importing schedule data...</p>
           </div>
         );
-      case 5:
-        return (
-          <div className="space-y-4">
-            {error && <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>}
-            {result && (
-              <div className="p-3 bg-green-50 text-green-700 rounded-lg text-sm">{result}</div>
-            )}
-          </div>
-        );
       default:
         return null;
     }
@@ -202,20 +183,10 @@ export default function ImportModal({ open, onClose, filters, onComplete }: Impo
 
   const renderFooter = () => {
     if (step === 4) return null;
-    if (step === 5) {
-      return (
-        <button
-          onClick={handleClose}
-          className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium"
-        >
-          Close
-        </button>
-      );
-    }
     return (
       <>
         <button
-          onClick={handleClose}
+          onClick={onClose}
           className="bg-gray-100 text-gray-700 hover:bg-gray-200 px-4 py-2 rounded-lg text-sm font-medium"
         >
           Cancel
@@ -260,14 +231,11 @@ export default function ImportModal({ open, onClose, filters, onComplete }: Impo
   return (
     <Modal
       isOpen={open}
-      onClose={handleClose}
-      title={`Import Schedule (Step ${step}/5)`}
+      onClose={onClose}
+      title={`Import Schedule (Step ${step}/4)`}
       size="lg"
       footer={renderFooter()}
     >
-      {error && step !== 5 && (
-        <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm mb-4">{error}</div>
-      )}
       {renderStep()}
     </Modal>
   );

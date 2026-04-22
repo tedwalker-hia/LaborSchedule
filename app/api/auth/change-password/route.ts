@@ -4,6 +4,10 @@ import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { SignJWT } from 'jose';
 import { config } from '@/lib/config';
+import { ChangePasswordBodySchema } from '@/lib/schemas/user';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 const PASSWORD_PATTERN = /^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
 const JWT_SECRET = new TextEncoder().encode(config.JWT_SECRET);
@@ -15,7 +19,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const { newPassword, currentPassword } = await request.json();
+    const parsed = ChangePasswordBodySchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json({ issues: parsed.error.issues }, { status: 400 });
+    }
+    const { newPassword, currentPassword } = parsed.data;
 
     if (!PASSWORD_PATTERN.test(newPassword)) {
       return NextResponse.json(

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import Modal from '@/components/ui/Modal';
 import type { FilterState } from '@/components/schedule/useScheduleState';
 
@@ -34,8 +35,6 @@ export default function GenerateModal({
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
   const [overwriteLocked, setOverwriteLocked] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [result, setResult] = useState('');
 
   // Reset state when modal opens
   useEffect(() => {
@@ -45,8 +44,6 @@ export default function GenerateModal({
       setEndDate(filters.endDate);
       setSelectedCodes(new Set(selectedEmployees ?? []));
       setOverwriteLocked(false);
-      setError('');
-      setResult('');
     }
   }, [open, filters.startDate, filters.endDate, selectedEmployees]);
 
@@ -61,7 +58,6 @@ export default function GenerateModal({
   const fetchEmployees = useCallback(async () => {
     if (!filters.hotelInfo) return;
     setLoading(true);
-    setError('');
     try {
       const params = new URLSearchParams({
         hotel: filters.hotel,
@@ -79,7 +75,7 @@ export default function GenerateModal({
         setSelectedCodes(new Set(list.map((e) => e.code)));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch employees');
+      toast.error(err instanceof Error ? err.message : 'Failed to fetch employees');
     } finally {
       setLoading(false);
     }
@@ -109,7 +105,6 @@ export default function GenerateModal({
     if (!filters.hotelInfo) return;
     setStep(4);
     setLoading(true);
-    setError('');
     try {
       const res = await fetch('/api/schedule/generate', {
         method: 'POST',
@@ -130,21 +125,15 @@ export default function GenerateModal({
         throw new Error(body.error ?? 'Generation failed');
       }
       const json = await res.json();
-      setResult(json.message ?? 'Schedule generated successfully.');
-      setStep(5);
+      toast.success(json.message ?? 'Schedule generated successfully.');
+      onComplete();
+      onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Generation failed');
-      setStep(5);
+      toast.error(err instanceof Error ? err.message : 'Generation failed');
+      setStep(3);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleClose = () => {
-    if (step === 5 && result) {
-      onComplete();
-    }
-    onClose();
   };
 
   const renderStep = () => {
@@ -244,15 +233,6 @@ export default function GenerateModal({
             <p className="text-sm text-gray-600">Generating schedule...</p>
           </div>
         );
-      case 5:
-        return (
-          <div className="space-y-4">
-            {error && <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>}
-            {result && (
-              <div className="p-3 bg-green-50 text-green-700 rounded-lg text-sm">{result}</div>
-            )}
-          </div>
-        );
       default:
         return null;
     }
@@ -260,20 +240,10 @@ export default function GenerateModal({
 
   const renderFooter = () => {
     if (step === 4) return null;
-    if (step === 5) {
-      return (
-        <button
-          onClick={handleClose}
-          className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium"
-        >
-          Close
-        </button>
-      );
-    }
     return (
       <>
         <button
-          onClick={handleClose}
+          onClick={onClose}
           className="bg-gray-100 text-gray-700 hover:bg-gray-200 px-4 py-2 rounded-lg text-sm font-medium"
         >
           Cancel
@@ -311,14 +281,11 @@ export default function GenerateModal({
   return (
     <Modal
       isOpen={open}
-      onClose={handleClose}
-      title={`Generate Schedule (Step ${step}/5)`}
+      onClose={onClose}
+      title={`Generate Schedule (Step ${step}/4)`}
       size="lg"
       footer={renderFooter()}
     >
-      {error && step !== 5 && (
-        <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm mb-4">{error}</div>
-      )}
       {renderStep()}
     </Modal>
   );

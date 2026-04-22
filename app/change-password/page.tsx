@@ -2,6 +2,7 @@
 
 import type { FormEvent } from 'react';
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 
 const PASSWORD_RULES = [
   { id: 'length', label: 'At least 8 characters', test: (p: string) => p.length >= 8 },
@@ -48,13 +49,13 @@ export default function ChangePasswordPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Failed to change password');
+        toast.error(data.error || 'Failed to change password');
         return;
       }
 
       window.location.href = '/schedule';
     } catch {
-      setError('An error occurred. Please try again.');
+      toast.error('An error occurred. Please try again.');
     } finally {
       setLoading(false);
     }

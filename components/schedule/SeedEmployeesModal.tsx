@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import Modal from '@/components/ui/Modal';
 import type { FilterState } from '@/components/schedule/useScheduleState';
 
@@ -46,8 +47,6 @@ export default function SeedEmployeesModal({
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [fetchingEmployees, setFetchingEmployees] = useState(false);
-  const [error, setError] = useState('');
-  const [result, setResult] = useState('');
 
   useEffect(() => {
     if (open) {
@@ -57,22 +56,19 @@ export default function SeedEmployeesModal({
       setSelectedUsrSystemCompanyId('');
       setEmployees([]);
       setSelectedCodes(new Set());
-      setError('');
-      setResult('');
       fetchTenants();
     }
   }, [open]);
 
   const fetchTenants = async () => {
     setLoading(true);
-    setError('');
     try {
       const res = await fetch('/api/payroll/tenants');
       if (!res.ok) throw new Error('Failed to fetch tenants');
       const json = await res.json();
       setTenants(json.tenants ?? json);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch tenants');
+      toast.error(err instanceof Error ? err.message : 'Failed to fetch tenants');
     } finally {
       setLoading(false);
     }
@@ -97,7 +93,6 @@ export default function SeedEmployeesModal({
   const fetchEmployees = async () => {
     if (!selectedUsrSystemCompanyId) return;
     setFetchingEmployees(true);
-    setError('');
     try {
       const params = new URLSearchParams({
         usrSystemCompanyId: selectedUsrSystemCompanyId,
@@ -110,7 +105,7 @@ export default function SeedEmployeesModal({
       setSelectedCodes(new Set(list.map((e) => e.code)));
       setStep(2);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch payroll employees');
+      toast.error(err instanceof Error ? err.message : 'Failed to fetch payroll employees');
     } finally {
       setFetchingEmployees(false);
     }
@@ -136,7 +131,6 @@ export default function SeedEmployeesModal({
   const handleSeed = async () => {
     setStep(3);
     setLoading(true);
-    setError('');
     try {
       const res = await fetch('/api/payroll/seed', {
         method: 'POST',
@@ -153,19 +147,15 @@ export default function SeedEmployeesModal({
         throw new Error(body.error ?? 'Seeding failed');
       }
       const json = await res.json();
-      setResult(json.message ?? 'Employees seeded successfully.');
-      setStep(4);
+      toast.success(json.message ?? 'Employees seeded successfully.');
+      onComplete();
+      onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Seeding failed');
-      setStep(4);
+      toast.error(err instanceof Error ? err.message : 'Seeding failed');
+      setStep(2);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleClose = () => {
-    if (step === 4 && result) onComplete();
-    onClose();
   };
 
   const renderStep = () => {
@@ -271,15 +261,6 @@ export default function SeedEmployeesModal({
             <p className="text-sm text-gray-600">Seeding employees...</p>
           </div>
         );
-      case 4:
-        return (
-          <div className="space-y-4">
-            {error && <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>}
-            {result && (
-              <div className="p-3 bg-green-50 text-green-700 rounded-lg text-sm">{result}</div>
-            )}
-          </div>
-        );
       default:
         return null;
     }
@@ -287,20 +268,10 @@ export default function SeedEmployeesModal({
 
   const renderFooter = () => {
     if (step === 3) return null;
-    if (step === 4) {
-      return (
-        <button
-          onClick={handleClose}
-          className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium"
-        >
-          Close
-        </button>
-      );
-    }
     return (
       <>
         <button
-          onClick={handleClose}
+          onClick={onClose}
           className="bg-gray-100 text-gray-700 hover:bg-gray-200 px-4 py-2 rounded-lg text-sm font-medium"
         >
           Cancel
@@ -338,14 +309,11 @@ export default function SeedEmployeesModal({
   return (
     <Modal
       isOpen={open}
-      onClose={handleClose}
-      title={`Seed Employees (Step ${step}/4)`}
+      onClose={onClose}
+      title={`Seed Employees (Step ${step}/3)`}
       size="lg"
       footer={renderFooter()}
     >
-      {error && step !== 4 && (
-        <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm mb-4">{error}</div>
-      )}
       {renderStep()}
     </Modal>
   );

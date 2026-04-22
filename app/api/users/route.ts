@@ -4,6 +4,10 @@ import type { Role } from '@/lib/permissions';
 import { getUserPermissions } from '@/lib/permissions';
 import { makeUserService, type UserScope } from '@/lib/services/user-service';
 import { mapErrorResponse } from '@/lib/http/map-error';
+import { CreateUserBodySchema } from '@/lib/schemas/user';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 // ─── GET /api/users ─────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
@@ -54,37 +58,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await req.json();
-    const {
-      firstName,
-      lastName,
-      email,
-      password,
-      role,
-      tenants = [],
-      hotels = [],
-      departments = [],
-    } = body as {
-      firstName: string;
-      lastName: string;
-      email: string;
-      password: string;
-      role: Role;
-      tenants: string[];
-      hotels: {
-        tenant: string;
-        hotelName: string;
-        usrSystemCompanyId?: string;
-        branchId?: number;
-      }[];
-      departments: { tenant: string; hotelName: string; deptName: string }[];
-    };
-
-    if (!firstName || !lastName || !email || !password || !role) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    const parsed = CreateUserBodySchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return NextResponse.json({ issues: parsed.error.issues }, { status: 400 });
     }
+    const { firstName, lastName, email, password, role, tenants, hotels, departments } =
+      parsed.data;
 
-    if (!perms.canManageUser(role)) {
+    if (!perms.canManageUser(role as Role)) {
       return NextResponse.json(
         { error: 'Insufficient permissions to create this role' },
         { status: 403 },

@@ -4,16 +4,20 @@ import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { SignJWT } from 'jose';
 import { config } from '@/lib/config';
+import { LoginBodySchema } from '@/lib/schemas/user';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 const JWT_SECRET = new TextEncoder().encode(config.JWT_SECRET);
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json();
-
-    if (!email || !password) {
-      return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
+    const parsed = LoginBodySchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json({ issues: parsed.error.issues }, { status: 400 });
     }
+    const { email, password } = parsed.data;
 
     // SQL Server collation is case-insensitive by default, so direct match works
     const user = await prisma.user.findFirst({

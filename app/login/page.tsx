@@ -2,16 +2,15 @@
 
 import type { FormEvent } from 'react';
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setError('');
     setLoading(true);
 
     try {
@@ -24,7 +23,7 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Login failed');
+        toast.error(data.error || 'Login failed');
         return;
       }
 
@@ -34,7 +33,7 @@ export default function LoginPage() {
         window.location.href = '/schedule';
       }
     } catch {
-      setError('An error occurred. Please try again.');
+      toast.error('An error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -46,12 +45,6 @@ export default function LoginPage() {
         <h1 className="text-2xl font-bold text-center text-gray-900 dark:text-white mb-6">
           Labor Schedule Editor
         </h1>
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg text-sm">
-            {error}
-          </div>
-        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

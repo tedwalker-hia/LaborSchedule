@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import Modal from '@/components/ui/Modal';
 import type { UserRow } from '@/components/users/UserTable';
 
@@ -242,10 +243,11 @@ export default function UserModal({ open, onClose, user, onSaved }: UserModalPro
         throw new Error(data.error ?? `Failed to ${isEdit ? 'update' : 'create'} user`);
       }
 
+      toast.success(isEdit ? 'User updated.' : 'User created.');
       onSaved();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+      toast.error(err instanceof Error ? err.message : 'An unexpected error occurred');
     } finally {
       setSaving(false);
     }

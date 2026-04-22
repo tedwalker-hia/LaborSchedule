@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import Modal from '@/components/ui/Modal';
 import type { FilterState } from '@/components/schedule/useScheduleState';
 
@@ -34,8 +35,6 @@ export default function RefreshEmployeesModal({
   const [selectedToAdd, setSelectedToAdd] = useState<Set<string>>(new Set());
   const [selectedToRemove, setSelectedToRemove] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [result, setResult] = useState('');
 
   useEffect(() => {
     if (open) {
@@ -43,8 +42,6 @@ export default function RefreshEmployeesModal({
       setPreview(null);
       setSelectedToAdd(new Set());
       setSelectedToRemove(new Set());
-      setError('');
-      setResult('');
       fetchPreview();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -53,7 +50,6 @@ export default function RefreshEmployeesModal({
   const fetchPreview = async () => {
     if (!filters.hotelInfo) return;
     setLoading(true);
-    setError('');
     try {
       const res = await fetch('/api/employees/refresh-preview', {
         method: 'POST',
@@ -75,7 +71,7 @@ export default function RefreshEmployeesModal({
       setSelectedToRemove(new Set(json.toRemove.map((e) => e.code)));
       setStep(2);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch preview');
+      toast.error(err instanceof Error ? err.message : 'Failed to fetch preview');
       setStep(2);
     } finally {
       setLoading(false);
@@ -104,7 +100,6 @@ export default function RefreshEmployeesModal({
     if (!filters.hotelInfo) return;
     setStep(3);
     setLoading(true);
-    setError('');
     try {
       const res = await fetch('/api/employees/refresh', {
         method: 'POST',
@@ -123,19 +118,15 @@ export default function RefreshEmployeesModal({
         throw new Error(body.error ?? 'Refresh failed');
       }
       const json = await res.json();
-      setResult(json.message ?? 'Employee list refreshed successfully.');
-      setStep(4);
+      toast.success(json.message ?? 'Employee list refreshed successfully.');
+      onComplete();
+      onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Refresh failed');
-      setStep(4);
+      toast.error(err instanceof Error ? err.message : 'Refresh failed');
+      setStep(2);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleClose = () => {
-    if (step === 4 && result) onComplete();
-    onClose();
   };
 
   const renderStep = () => {
@@ -149,7 +140,7 @@ export default function RefreshEmployeesModal({
         );
       case 2:
         if (!preview) {
-          return error ? null : <p className="text-sm text-gray-500">No preview data available.</p>;
+          return <p className="text-sm text-gray-500">No preview data available.</p>;
         }
         return (
           <div className="space-y-4">
@@ -221,15 +212,6 @@ export default function RefreshEmployeesModal({
             <p className="text-sm text-gray-600">Refreshing employee list...</p>
           </div>
         );
-      case 4:
-        return (
-          <div className="space-y-4">
-            {error && <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>}
-            {result && (
-              <div className="p-3 bg-green-50 text-green-700 rounded-lg text-sm">{result}</div>
-            )}
-          </div>
-        );
       default:
         return null;
     }
@@ -237,22 +219,12 @@ export default function RefreshEmployeesModal({
 
   const renderFooter = () => {
     if (step === 1 || step === 3) return null;
-    if (step === 4) {
-      return (
-        <button
-          onClick={handleClose}
-          className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium"
-        >
-          Close
-        </button>
-      );
-    }
     // Step 2
     const hasChanges = selectedToAdd.size > 0 || selectedToRemove.size > 0;
     return (
       <>
         <button
-          onClick={handleClose}
+          onClick={onClose}
           className="bg-gray-100 text-gray-700 hover:bg-gray-200 px-4 py-2 rounded-lg text-sm font-medium"
         >
           Cancel
@@ -271,14 +243,11 @@ export default function RefreshEmployeesModal({
   return (
     <Modal
       isOpen={open}
-      onClose={handleClose}
+      onClose={onClose}
       title="Refresh Employees"
       size="lg"
       footer={renderFooter()}
     >
-      {error && step !== 4 && (
-        <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm mb-4">{error}</div>
-      )}
       {renderStep()}
     </Modal>
   );

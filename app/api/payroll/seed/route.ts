@@ -2,6 +2,10 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { makePayrollService } from '@/lib/services/payroll-service';
 import { mapErrorResponse } from '@/lib/http/map-error';
+import { SeedBodySchema } from '@/lib/schemas/payroll';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   const userId = request.headers.get('x-user-id');
@@ -9,21 +13,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
-  const body = await request.json();
-  const { usrSystemCompanyId, branchId, hotelName, tenant, employees } = body;
-
-  if (!usrSystemCompanyId || !Array.isArray(employees)) {
-    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+  const parsed = SeedBodySchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return NextResponse.json({ issues: parsed.error.issues }, { status: 400 });
   }
 
   try {
-    const result = await makePayrollService().seed({
-      usrSystemCompanyId,
-      branchId,
-      hotelName,
-      tenant,
-      employees,
-    });
+    const result = await makePayrollService().seed(parsed.data);
     return NextResponse.json(result);
   } catch (err) {
     return mapErrorResponse(err, 'POST /api/payroll/seed error');

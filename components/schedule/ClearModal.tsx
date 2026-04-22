@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import Modal from '@/components/ui/Modal';
 import type { FilterState } from '@/components/schedule/useScheduleState';
 
@@ -34,8 +35,6 @@ export default function ClearModal({
   const [clearLocked, setClearLocked] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetchingEmployees, setFetchingEmployees] = useState(false);
-  const [error, setError] = useState('');
-  const [result, setResult] = useState('');
 
   useEffect(() => {
     if (open) {
@@ -43,8 +42,6 @@ export default function ClearModal({
       setEndDate(filters.endDate);
       setSelectedCodes(new Set(selectedEmployees ?? []));
       setClearLocked(false);
-      setError('');
-      setResult('');
       fetchEmployees();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -67,7 +64,7 @@ export default function ClearModal({
         setSelectedCodes(new Set(selectedEmployees));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch employees');
+      toast.error(err instanceof Error ? err.message : 'Failed to fetch employees');
     } finally {
       setFetchingEmployees(false);
     }
@@ -93,7 +90,6 @@ export default function ClearModal({
   const handleClear = async () => {
     if (!filters.hotelInfo) return;
     setLoading(true);
-    setError('');
     try {
       const res = await fetch('/api/schedule/clear', {
         method: 'POST',
@@ -114,30 +110,20 @@ export default function ClearModal({
         throw new Error(body.error ?? 'Clear failed');
       }
       const json = await res.json();
-      setResult(json.message ?? 'Schedule cleared successfully.');
+      toast.success(json.message ?? 'Schedule cleared successfully.');
+      onComplete();
+      onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Clear failed');
+      toast.error(err instanceof Error ? err.message : 'Clear failed');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleClose = () => {
-    if (result) onComplete();
-    onClose();
-  };
-
-  const footer = result ? (
-    <button
-      onClick={handleClose}
-      className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium"
-    >
-      Close
-    </button>
-  ) : (
+  const footer = (
     <>
       <button
-        onClick={handleClose}
+        onClick={onClose}
         className="bg-gray-100 text-gray-700 hover:bg-gray-200 px-4 py-2 rounded-lg text-sm font-medium"
       >
         Cancel
@@ -153,82 +139,77 @@ export default function ClearModal({
   );
 
   return (
-    <Modal isOpen={open} onClose={handleClose} title="Clear Schedule" size="md" footer={footer}>
-      {error && <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm mb-4">{error}</div>}
-      {result ? (
-        <div className="p-3 bg-green-50 text-green-700 rounded-lg text-sm">{result}</div>
-      ) : (
-        <div className="space-y-4">
-          <div>
-            <h3 className="text-sm font-medium text-gray-700 mb-2">Date Range</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">Start Date</label>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">End Date</label>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                />
-              </div>
+    <Modal isOpen={open} onClose={onClose} title="Clear Schedule" size="md" footer={footer}>
+      <div className="space-y-4">
+        <div>
+          <h3 className="text-sm font-medium text-gray-700 mb-2">Date Range</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Start Date</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">End Date</label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              />
             </div>
           </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-700">
-                Employees ({selectedCodes.size}/{employees.length})
-              </h3>
-              <button onClick={toggleAll} className="text-sm text-blue-600 hover:text-blue-800">
-                {selectedCodes.size === employees.length ? 'Deselect All' : 'Select All'}
-              </button>
-            </div>
-            {fetchingEmployees ? (
-              <div className="flex justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              </div>
-            ) : (
-              <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
-                {employees.map((emp) => (
-                  <label
-                    key={emp.code}
-                    className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedCodes.has(emp.code)}
-                      onChange={() => toggleEmployee(emp.code)}
-                      className="mr-3"
-                    />
-                    <span className="text-sm text-gray-800">
-                      {emp.firstName} {emp.lastName}
-                    </span>
-                    <span className="ml-auto text-xs text-gray-500">{emp.deptName}</span>
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={clearLocked}
-              onChange={(e) => setClearLocked(e.target.checked)}
-            />
-            <span className="text-sm text-gray-700">Also clear locked records?</span>
-          </label>
         </div>
-      )}
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-gray-700">
+              Employees ({selectedCodes.size}/{employees.length})
+            </h3>
+            <button onClick={toggleAll} className="text-sm text-blue-600 hover:text-blue-800">
+              {selectedCodes.size === employees.length ? 'Deselect All' : 'Select All'}
+            </button>
+          </div>
+          {fetchingEmployees ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : (
+            <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
+              {employees.map((emp) => (
+                <label
+                  key={emp.code}
+                  className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedCodes.has(emp.code)}
+                    onChange={() => toggleEmployee(emp.code)}
+                    className="mr-3"
+                  />
+                  <span className="text-sm text-gray-800">
+                    {emp.firstName} {emp.lastName}
+                  </span>
+                  <span className="ml-auto text-xs text-gray-500">{emp.deptName}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={clearLocked}
+            onChange={(e) => setClearLocked(e.target.checked)}
+          />
+          <span className="text-sm text-gray-700">Also clear locked records?</span>
+        </label>
+      </div>
     </Modal>
   );
 }
