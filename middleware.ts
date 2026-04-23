@@ -1,3 +1,4 @@
+import '@/lib/config';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { verify, rotate, COOKIE_NAME, ABSOLUTE_TTL_S } from '@/lib/session';
