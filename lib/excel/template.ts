@@ -23,7 +23,8 @@ export async function generateBlankTemplate(params: TemplateParams): Promise<Buf
     employees: params.employees ?? [],
     dates: params.dates,
     schedule: {},
-    // Far-future date ensures all cells render as editable (no past-date lock-out).
-    today: new Date('9999-12-31'),
+    // Far-past "today" ensures every real date compares as future in the writer's
+    // isBefore(date, today) check, so all cells stay editable with dropdowns.
+    today: new Date('1900-01-01'),
   });
 }
