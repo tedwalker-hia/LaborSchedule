@@ -2,7 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
+import Alert from '@/components/ui/Alert';
 import Modal from '@/components/ui/Modal';
+import Button from '@/components/ui/Button';
+import Chip from '@/components/ui/Chip';
+import Spinner from '@/components/ui/Spinner';
+import TextField from '@/components/ui/TextField';
+import SelectField from '@/components/ui/SelectField';
 import type { UserRow } from '@/components/users/UserTable';
 
 type Role = 'SuperAdmin' | 'CompanyAdmin' | 'HotelAdmin' | 'DeptAdmin';
@@ -27,10 +33,7 @@ const ROLES: { value: Role; label: string }[] = [
   { value: 'DeptAdmin', label: 'Dept Admin' },
 ];
 
-const inputCls =
-  'w-full border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
-
-const labelCls = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1';
+const fieldLabelCls = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1';
 
 export default function UserModal({ open, onClose, user, onSaved }: UserModalProps) {
   const isEdit = user !== null;
@@ -256,19 +259,12 @@ export default function UserModal({ open, onClose, user, onSaved }: UserModalPro
   // ── Render ─────────────────────────────────────────────────────────────
   const footer = (
     <>
-      <button
-        onClick={onClose}
-        className="bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-slate-700 dark:text-gray-300 dark:hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium"
-      >
+      <Button variant="secondary" onClick={onClose}>
         Cancel
-      </button>
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
-      >
+      </Button>
+      <Button variant="primary" onClick={handleSave} disabled={saving}>
         {saving ? 'Saving...' : isEdit ? 'Update User' : 'Create User'}
-      </button>
+      </Button>
     </>
   );
 
@@ -281,77 +277,51 @@ export default function UserModal({ open, onClose, user, onSaved }: UserModalPro
       footer={footer}
     >
       {error && (
-        <div className="p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg text-sm mb-4">
+        <Alert variant="error" className="mb-4">
           {error}
-        </div>
+        </Alert>
       )}
 
       <div className="space-y-4">
         {/* Name row */}
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className={labelCls}>First Name</label>
-            <input
-              type="text"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              className={inputCls}
-              placeholder="First name"
-            />
-          </div>
-          <div>
-            <label className={labelCls}>Last Name</label>
-            <input
-              type="text"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              className={inputCls}
-              placeholder="Last name"
-            />
-          </div>
-        </div>
-
-        {/* Email */}
-        <div>
-          <label className={labelCls}>Email</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className={inputCls}
-            placeholder="user@example.com"
+          <TextField
+            label="First Name"
+            value={firstName}
+            onChange={setFirstName}
+            placeholder="First name"
+          />
+          <TextField
+            label="Last Name"
+            value={lastName}
+            onChange={setLastName}
+            placeholder="Last name"
           />
         </div>
 
-        {/* Password */}
-        <div>
-          <label className={labelCls}>
-            {isEdit ? 'Password (leave blank to keep current)' : 'Password'}
-          </label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className={inputCls}
-            placeholder={isEdit ? 'Leave blank to keep current' : 'Enter password'}
-          />
-        </div>
+        <TextField
+          label="Email"
+          type="email"
+          value={email}
+          onChange={setEmail}
+          placeholder="user@example.com"
+        />
 
-        {/* Role */}
-        <div>
-          <label className={labelCls}>Role</label>
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value as Role)}
-            className={inputCls}
-          >
-            {ROLES.map((r) => (
-              <option key={r.value} value={r.value}>
-                {r.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <TextField
+          label={isEdit ? 'Password (leave blank to keep current)' : 'Password'}
+          type="password"
+          value={password}
+          onChange={setPassword}
+          placeholder={isEdit ? 'Leave blank to keep current' : 'Enter password'}
+        />
+
+        <SelectField label="Role" value={role} onChange={(v) => setRole(v as Role)}>
+          {ROLES.map((r) => (
+            <option key={r.value} value={r.value}>
+              {r.label}
+            </option>
+          ))}
+        </SelectField>
 
         {/* ── Assignment section ─────────────────────────────────────── */}
         {role !== 'SuperAdmin' && (
@@ -362,14 +332,14 @@ export default function UserModal({ open, onClose, user, onSaved }: UserModalPro
 
             {loadingTenants ? (
               <div className="flex justify-center py-6">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
+                <Spinner size="sm" />
               </div>
             ) : (
               <>
                 {/* CompanyAdmin: tenant checkboxes */}
                 {role === 'CompanyAdmin' && (
                   <div>
-                    <label className={labelCls}>Tenants</label>
+                    <label className={fieldLabelCls}>Tenants</label>
                     {availableTenants.length === 0 ? (
                       <p className="text-sm text-gray-500 dark:text-gray-400 italic">
                         No tenants available.
@@ -398,28 +368,21 @@ export default function UserModal({ open, onClose, user, onSaved }: UserModalPro
                 {/* HotelAdmin: tenant dropdown -> hotel checkboxes */}
                 {role === 'HotelAdmin' && (
                   <div className="space-y-3">
-                    <div>
-                      <label className={labelCls}>Tenant</label>
-                      <select
-                        value={selectedTenant}
-                        onChange={(e) => setSelectedTenant(e.target.value)}
-                        className={inputCls}
-                      >
-                        <option value="">Select tenant...</option>
-                        {availableTenants.map((t) => (
-                          <option key={t} value={t}>
-                            {t}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    <SelectField label="Tenant" value={selectedTenant} onChange={setSelectedTenant}>
+                      <option value="">Select tenant...</option>
+                      {availableTenants.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </SelectField>
 
                     {selectedTenant && (
                       <div>
-                        <label className={labelCls}>Hotels</label>
+                        <label className={fieldLabelCls}>Hotels</label>
                         {loadingHotels ? (
                           <div className="flex justify-center py-4">
-                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600" />
+                            <Spinner size="sm" />
                           </div>
                         ) : availableHotels.length === 0 ? (
                           <p className="text-sm text-gray-500 dark:text-gray-400 italic">
@@ -452,22 +415,16 @@ export default function UserModal({ open, onClose, user, onSaved }: UserModalPro
                     {/* Show currently assigned hotels across all tenants */}
                     {selectedHotels.length > 0 && (
                       <div>
-                        <label className={labelCls}>Assigned Hotels</label>
+                        <label className={fieldLabelCls}>Assigned Hotels</label>
                         <div className="flex flex-wrap gap-1.5">
                           {selectedHotels.map((h) => (
-                            <span
+                            <Chip
                               key={`${h.tenant}-${h.hotelName}`}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full font-medium bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300"
+                              color="purple"
+                              onRemove={() => toggleHotel(h.tenant, h.hotelName)}
                             >
                               {h.hotelName}
-                              <button
-                                type="button"
-                                onClick={() => toggleHotel(h.tenant, h.hotelName)}
-                                className="hover:text-purple-900 dark:hover:text-purple-100"
-                              >
-                                &times;
-                              </button>
-                            </span>
+                            </Chip>
                           ))}
                         </div>
                       </div>
@@ -478,48 +435,44 @@ export default function UserModal({ open, onClose, user, onSaved }: UserModalPro
                 {/* DeptAdmin: tenant -> hotel -> department checkboxes */}
                 {role === 'DeptAdmin' && (
                   <div className="space-y-3">
-                    <div>
-                      <label className={labelCls}>Tenant</label>
-                      <select
-                        value={selectedTenant}
-                        onChange={(e) => {
-                          setSelectedTenant(e.target.value);
-                          setSelectedHotelForDepts('');
-                          setSelectedHotelUsrSystemCompanyId('');
-                          setAvailableDepts([]);
-                        }}
-                        className={inputCls}
-                      >
-                        <option value="">Select tenant...</option>
-                        {availableTenants.map((t) => (
-                          <option key={t} value={t}>
-                            {t}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    <SelectField
+                      label="Tenant"
+                      value={selectedTenant}
+                      onChange={(v) => {
+                        setSelectedTenant(v);
+                        setSelectedHotelForDepts('');
+                        setSelectedHotelUsrSystemCompanyId('');
+                        setAvailableDepts([]);
+                      }}
+                    >
+                      <option value="">Select tenant...</option>
+                      {availableTenants.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </SelectField>
 
                     {selectedTenant && (
                       <div>
-                        <label className={labelCls}>Hotel</label>
                         {loadingHotels ? (
-                          <div className="flex justify-center py-4">
-                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600" />
-                          </div>
+                          <>
+                            <label className={fieldLabelCls}>Hotel</label>
+                            <div className="flex justify-center py-4">
+                              <Spinner size="sm" />
+                            </div>
+                          </>
                         ) : (
-                          <select
+                          <SelectField
+                            label="Hotel"
                             value={selectedHotelForDepts}
-                            onChange={(e) => {
-                              const hotelName = e.target.value;
-                              setSelectedHotelForDepts(hotelName);
-                              const hotelOption = availableHotels.find(
-                                (h) => h.hotelName === hotelName,
-                              );
+                            onChange={(v) => {
+                              setSelectedHotelForDepts(v);
+                              const hotelOption = availableHotels.find((h) => h.hotelName === v);
                               setSelectedHotelUsrSystemCompanyId(
                                 hotelOption?.usrSystemCompanyId ?? '',
                               );
                             }}
-                            className={inputCls}
                           >
                             <option value="">Select hotel...</option>
                             {availableHotels.map((h) => (
@@ -527,17 +480,17 @@ export default function UserModal({ open, onClose, user, onSaved }: UserModalPro
                                 {h.hotelName}
                               </option>
                             ))}
-                          </select>
+                          </SelectField>
                         )}
                       </div>
                     )}
 
                     {selectedHotelForDepts && (
                       <div>
-                        <label className={labelCls}>Departments</label>
+                        <label className={fieldLabelCls}>Departments</label>
                         {loadingDepts ? (
                           <div className="flex justify-center py-4">
-                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600" />
+                            <Spinner size="sm" />
                           </div>
                         ) : availableDepts.length === 0 ? (
                           <p className="text-sm text-gray-500 dark:text-gray-400 italic">
@@ -574,22 +527,16 @@ export default function UserModal({ open, onClose, user, onSaved }: UserModalPro
                     {/* Show currently assigned departments across all tenants/hotels */}
                     {selectedDepts.length > 0 && (
                       <div>
-                        <label className={labelCls}>Assigned Departments</label>
+                        <label className={fieldLabelCls}>Assigned Departments</label>
                         <div className="flex flex-wrap gap-1.5">
                           {selectedDepts.map((d) => (
-                            <span
+                            <Chip
                               key={`${d.tenant}-${d.hotelName}-${d.deptName}`}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                              color="gray"
+                              onRemove={() => toggleDept(d.tenant, d.hotelName, d.deptName)}
                             >
                               {d.hotelName} / {d.deptName}
-                              <button
-                                type="button"
-                                onClick={() => toggleDept(d.tenant, d.hotelName, d.deptName)}
-                                className="hover:text-gray-900 dark:hover:text-gray-100"
-                              >
-                                &times;
-                              </button>
-                            </span>
+                            </Chip>
                           ))}
                         </div>
                       </div>

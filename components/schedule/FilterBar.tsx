@@ -1,6 +1,7 @@
 'use client';
 
 import type { FilterState, HotelOption } from '@/components/schedule/useScheduleState';
+import DateRangeField from '@/components/ui/DateRangeField';
 
 interface FilterBarProps {
   filters: FilterState;
@@ -17,9 +18,6 @@ const selectClasses =
   'px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-700 border-gray-300 dark:border-slate-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500';
 
 const labelClasses = 'text-sm font-medium text-gray-700 dark:text-gray-300';
-
-const inputClasses =
-  'px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-700 border-gray-300 dark:border-slate-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500';
 
 export default function FilterBar({
   filters,
@@ -143,27 +141,15 @@ export default function FilterBar({
           </select>
         </div>
 
-        <div className="flex flex-col gap-1">
-          <label className={labelClasses}>From</label>
-          <input
-            type="date"
-            className={inputClasses}
-            value={filters.startDate}
-            onChange={(e) => handleStartDateChange(e.target.value)}
-            disabled={!filters.hotel || loading}
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className={labelClasses}>To</label>
-          <input
-            type="date"
-            className={inputClasses}
-            value={filters.endDate}
-            onChange={(e) => handleEndDateChange(e.target.value)}
-            disabled={!filters.hotel || loading}
-          />
-        </div>
+        <DateRangeField
+          startLabel="From"
+          endLabel="To"
+          startValue={filters.startDate}
+          endValue={filters.endDate}
+          onStartChange={handleStartDateChange}
+          onEndChange={handleEndDateChange}
+          disabled={!filters.hotel || loading}
+        />
       </div>
     </div>
   );

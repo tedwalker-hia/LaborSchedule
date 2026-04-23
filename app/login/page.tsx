@@ -3,6 +3,7 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
+import Button from '@/components/ui/Button';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -82,13 +83,14 @@ export default function LoginPage() {
             />
           </div>
 
-          <button
+          <Button
             type="submit"
+            variant="primary"
             disabled={loading}
-            className="w-full py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full py-2.5 justify-center"
           >
             {loading ? 'Signing in...' : 'Sign In'}
-          </button>
+          </Button>
         </form>
       </div>
     </div>

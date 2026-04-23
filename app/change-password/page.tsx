@@ -3,6 +3,8 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
+import Alert from '@/components/ui/Alert';
+import Button from '@/components/ui/Button';
 
 const PASSWORD_RULES = [
   { id: 'length', label: 'At least 8 characters', test: (p: string) => p.length >= 8 },
@@ -72,9 +74,9 @@ export default function ChangePasswordPage() {
         </p>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg text-sm">
+          <Alert variant="error" className="mb-4">
             {error}
-          </div>
+          </Alert>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -146,13 +148,14 @@ export default function ChangePasswordPage() {
             </div>
           </div>
 
-          <button
+          <Button
             type="submit"
+            variant="primary"
             disabled={loading || !allRulesMet || !passwordsMatch}
-            className="w-full py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full py-2.5 justify-center"
           >
             {loading ? 'Changing...' : 'Change Password'}
-          </button>
+          </Button>
         </form>
       </div>
     </div>

@@ -3,7 +3,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
+import Alert from '@/components/ui/Alert';
 import Modal from '@/components/ui/Modal';
+import Button from '@/components/ui/Button';
+import Spinner from '@/components/ui/Spinner';
 import UserTable, { type UserRow } from '@/components/users/UserTable';
 import UserModal from '@/components/users/UserModal';
 
@@ -82,19 +85,16 @@ export default function UsersPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">User Management</h1>
-        <button
-          onClick={handleAdd}
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border border-blue-500 bg-blue-600 text-white hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500"
-        >
+        <Button variant="primary" onClick={handleAdd}>
           <Plus size={16} />
           Add User
-        </button>
+        </Button>
       </div>
 
       {/* Content */}
       {loading ? (
         <div className="flex justify-center py-20">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+          <Spinner />
         </div>
       ) : (
         <UserTable users={users} onEdit={handleEdit} onDelete={handleDeleteRequest} />
@@ -116,19 +116,12 @@ export default function UsersPage() {
         size="sm"
         footer={
           <>
-            <button
-              onClick={handleDeleteCancel}
-              className="bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-slate-700 dark:text-gray-300 dark:hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium"
-            >
+            <Button variant="secondary" onClick={handleDeleteCancel}>
               Cancel
-            </button>
-            <button
-              onClick={handleDeleteConfirm}
-              disabled={deleting}
-              className="bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
-            >
+            </Button>
+            <Button variant="danger" onClick={handleDeleteConfirm} disabled={deleting}>
               {deleting ? 'Deleting...' : 'Delete'}
-            </button>
+            </Button>
           </>
         }
       >
@@ -138,9 +131,7 @@ export default function UsersPage() {
             <span className="font-semibold">{deleteConfirm?.name}</span>? This user will no longer
             be able to log in.
           </p>
-          <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 rounded-lg text-sm">
-            This action can be reversed by a database administrator.
-          </div>
+          <Alert variant="warning">This action can be reversed by a database administrator.</Alert>
         </div>
       </Modal>
     </div>

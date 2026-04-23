@@ -16,6 +16,7 @@ export default tseslint.config(
       'next-env.d.ts',
       'tests/spikes/**',
       'scripts/check-excel-verdict.ts',
+      'scripts/template-parity.ts',
       'e2e/**',
       'playwright.config.ts',
     ],

@@ -2,8 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import Modal from '@/components/ui/Modal';
+import Alert from '@/components/ui/Alert';
+import { useWizard, Wizard } from '@/components/ui/Wizard';
+import ResultStep from '@/components/ui/ResultStep';
+import Button from '@/components/ui/Button';
+import EmployeeCheckboxList from '@/components/ui/EmployeeCheckboxList';
 import type { FilterState } from '@/components/schedule/useScheduleState';
+import { useToggleSet } from '@/lib/hooks/useToggleSet';
 
 interface EmployeePreview {
   code: string;
@@ -30,18 +35,34 @@ export default function RefreshEmployeesModal({
   filters,
   onComplete,
 }: RefreshEmployeesModalProps) {
-  const [step, setStep] = useState(1);
+  const { step, next, goTo, reset } = useWizard(3);
   const [preview, setPreview] = useState<RefreshPreviewData | null>(null);
-  const [selectedToAdd, setSelectedToAdd] = useState<Set<string>>(new Set());
-  const [selectedToRemove, setSelectedToRemove] = useState<Set<string>>(new Set());
+  const {
+    set: selectedToAdd,
+    toggle: toggleAdd,
+    toggleAll: toggleAllAdd,
+    clear: clearToAdd,
+    reset: resetToAdd,
+  } = useToggleSet<string>();
+  const {
+    set: selectedToRemove,
+    toggle: toggleRemove,
+    toggleAll: toggleAllRemove,
+    clear: clearToRemove,
+    reset: resetToRemove,
+  } = useToggleSet<string>();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
-      setStep(1);
+      reset();
       setPreview(null);
-      setSelectedToAdd(new Set());
-      setSelectedToRemove(new Set());
+      clearToAdd();
+      clearToRemove();
+      setError(null);
+      setResult(null);
       fetchPreview();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -67,39 +88,23 @@ export default function RefreshEmployeesModal({
       }
       const json: RefreshPreviewData = await res.json();
       setPreview(json);
-      setSelectedToAdd(new Set(json.toAdd.map((e) => e.code)));
-      setSelectedToRemove(new Set(json.toRemove.map((e) => e.code)));
-      setStep(2);
+      resetToAdd(json.toAdd.map((e) => e.code));
+      resetToRemove(json.toRemove.map((e) => e.code));
+      next();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to fetch preview');
-      setStep(2);
+      next();
     } finally {
       setLoading(false);
     }
   };
 
-  const toggleAdd = (code: string) => {
-    setSelectedToAdd((prev) => {
-      const next = new Set(prev);
-      if (next.has(code)) next.delete(code);
-      else next.add(code);
-      return next;
-    });
-  };
-
-  const toggleRemove = (code: string) => {
-    setSelectedToRemove((prev) => {
-      const next = new Set(prev);
-      if (next.has(code)) next.delete(code);
-      else next.add(code);
-      return next;
-    });
-  };
-
   const handleExecute = async () => {
     if (!filters.hotelInfo) return;
-    setStep(3);
+    goTo(3);
     setLoading(true);
+    setError(null);
+    setResult(null);
     try {
       const res = await fetch('/api/employees/refresh', {
         method: 'POST',
@@ -118,12 +123,10 @@ export default function RefreshEmployeesModal({
         throw new Error(body.error ?? 'Refresh failed');
       }
       const json = await res.json();
-      toast.success(json.message ?? 'Employee list refreshed successfully.');
+      setResult(json.message ?? 'Employee list refreshed successfully.');
       onComplete();
-      onClose();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Refresh failed');
-      setStep(2);
+      setError(err instanceof Error ? err.message : 'Refresh failed');
     } finally {
       setLoading(false);
     }
@@ -132,12 +135,7 @@ export default function RefreshEmployeesModal({
   const renderStep = () => {
     switch (step) {
       case 1:
-        return (
-          <div className="flex flex-col items-center py-8 gap-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p className="text-sm text-gray-600">Loading employee changes...</p>
-          </div>
-        );
+        return <ResultStep loading loadingText="Loading employee changes..." />;
       case 2:
         if (!preview) {
           return <p className="text-sm text-gray-500">No preview data available.</p>;
@@ -145,72 +143,45 @@ export default function RefreshEmployeesModal({
         return (
           <div className="space-y-4">
             {preview.toAdd.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium text-green-700 mb-2">
-                  New Employees to Add ({selectedToAdd.size}/{preview.toAdd.length})
-                </h3>
-                <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
-                  {preview.toAdd.map((emp) => (
-                    <label
-                      key={emp.code}
-                      className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedToAdd.has(emp.code)}
-                        onChange={() => toggleAdd(emp.code)}
-                        className="mr-3"
-                      />
-                      <span className="text-sm text-gray-800">
-                        {emp.firstName} {emp.lastName}
-                      </span>
-                      <span className="ml-auto text-xs text-gray-500">{emp.deptName}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+              <EmployeeCheckboxList
+                employees={preview.toAdd}
+                selected={selectedToAdd}
+                onToggle={toggleAdd}
+                onToggleAll={toggleAllAdd}
+                label="New Employees to Add"
+                labelClassName="text-sm font-medium text-green-700"
+                maxHeight="max-h-40"
+              />
             )}
 
             {preview.toRemove.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium text-red-700 mb-2">
-                  Employees to Remove ({selectedToRemove.size}/{preview.toRemove.length})
-                </h3>
-                <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
-                  {preview.toRemove.map((emp) => (
-                    <label
-                      key={emp.code}
-                      className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedToRemove.has(emp.code)}
-                        onChange={() => toggleRemove(emp.code)}
-                        className="mr-3"
-                      />
-                      <span className="text-sm text-gray-800">
-                        {emp.firstName} {emp.lastName}
-                      </span>
-                      <span className="ml-auto text-xs text-gray-500">{emp.deptName}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+              <EmployeeCheckboxList
+                employees={preview.toRemove}
+                selected={selectedToRemove}
+                onToggle={toggleRemove}
+                onToggleAll={toggleAllRemove}
+                label="Employees to Remove"
+                labelClassName="text-sm font-medium text-red-700"
+                maxHeight="max-h-40"
+              />
             )}
 
             {preview.toAdd.length === 0 && preview.toRemove.length === 0 && (
-              <div className="p-3 bg-green-50 text-green-700 rounded-lg text-sm">
+              <Alert variant="success">
                 Employee list is already up to date. No changes needed.
-              </div>
+              </Alert>
             )}
           </div>
         );
       case 3:
         return (
-          <div className="flex flex-col items-center py-8 gap-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p className="text-sm text-gray-600">Refreshing employee list...</p>
-          </div>
+          <ResultStep
+            loading={loading}
+            loadingText="Refreshing employee list..."
+            error={error}
+            result={result}
+            onClose={onClose}
+          />
         );
       default:
         return null;
@@ -219,36 +190,31 @@ export default function RefreshEmployeesModal({
 
   const renderFooter = () => {
     if (step === 1 || step === 3) return null;
-    // Step 2
     const hasChanges = selectedToAdd.size > 0 || selectedToRemove.size > 0;
     return (
       <>
-        <button
-          onClick={onClose}
-          className="bg-gray-100 text-gray-700 hover:bg-gray-200 px-4 py-2 rounded-lg text-sm font-medium"
-        >
+        <Button variant="secondary" onClick={onClose}>
           Cancel
-        </button>
-        <button
-          onClick={handleExecute}
-          disabled={!hasChanges}
-          className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
-        >
+        </Button>
+        <Button variant="primary" onClick={handleExecute} disabled={!hasChanges}>
           Apply Changes
-        </button>
+        </Button>
       </>
     );
   };
 
   return (
-    <Modal
-      isOpen={open}
+    <Wizard
+      open={open}
       onClose={onClose}
       title="Refresh Employees"
       size="lg"
+      step={step}
+      total={3}
+      showStepCount={false}
       footer={renderFooter()}
     >
       {renderStep()}
-    </Modal>
+    </Wizard>
   );
 }
