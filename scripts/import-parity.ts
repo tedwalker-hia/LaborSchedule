@@ -156,10 +156,14 @@ async function startContainer(): Promise<{
     if (attempt > 0) await new Promise((r) => setTimeout(r, 2000));
     const result = await container.exec([
       '/opt/mssql-tools18/bin/sqlcmd',
-      '-S', 'localhost,1433',
-      '-U', 'sa',
-      '-P', SA_PASSWORD,
-      '-Q', `CREATE DATABASE [${TEST_DB}]`,
+      '-S',
+      'localhost,1433',
+      '-U',
+      'sa',
+      '-P',
+      SA_PASSWORD,
+      '-Q',
+      `CREATE DATABASE [${TEST_DB}]`,
       '-C',
     ]);
     dbCreated = result.exitCode === 0;
@@ -234,9 +238,7 @@ async function processWorkbook(
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
-  const xlsxFiles = (await readdir(EXCEL_DIR))
-    .filter((f) => f.endsWith('.xlsx'))
-    .sort();
+  const xlsxFiles = (await readdir(EXCEL_DIR)).filter((f) => f.endsWith('.xlsx')).sort();
 
   if (xlsxFiles.length === 0) {
     console.error('No .xlsx fixtures found in', EXCEL_DIR);
@@ -292,7 +294,11 @@ async function main(): Promise<void> {
         } else {
           console.log(`FAIL (${rows.length} rows vs baseline ${baseline.rows.length})`);
           const diff = lineDiff(expected, actual);
-          const diffLines = diff.split('\n').slice(0, 40).map((l) => '    ' + l).join('\n');
+          const diffLines = diff
+            .split('\n')
+            .slice(0, 40)
+            .map((l) => '    ' + l)
+            .join('\n');
           console.error(`  diff (- expected  + actual):\n${diffLines}`);
           if (diff.split('\n').length > 40) console.error('  ... (truncated)');
           failures.push(filename);

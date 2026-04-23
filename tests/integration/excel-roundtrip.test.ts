@@ -48,17 +48,19 @@ const employees = [
   },
 ];
 
-const schedule: Record<string, Record<string, { clockIn: string; clockOut: string; hours: number }>> =
-  {
-    ERT001: {
-      '2025-06-01': { clockIn: '8:00 AM', clockOut: '4:00 PM', hours: 8 },
-      '2025-06-02': { clockIn: '9:00 AM', clockOut: '5:00 PM', hours: 8 },
-    },
-    ERT002: {
-      '2025-06-02': { clockIn: '7:00 AM', clockOut: '3:00 PM', hours: 8 },
-      '2025-06-03': { clockIn: '10:00 AM', clockOut: '6:00 PM', hours: 8 },
-    },
-  };
+const schedule: Record<
+  string,
+  Record<string, { clockIn: string; clockOut: string; hours: number }>
+> = {
+  ERT001: {
+    '2025-06-01': { clockIn: '8:00 AM', clockOut: '4:00 PM', hours: 8 },
+    '2025-06-02': { clockIn: '9:00 AM', clockOut: '5:00 PM', hours: 8 },
+  },
+  ERT002: {
+    '2025-06-02': { clockIn: '7:00 AM', clockOut: '3:00 PM', hours: 8 },
+    '2025-06-03': { clockIn: '10:00 AM', clockOut: '6:00 PM', hours: 8 },
+  },
+};
 
 describe('Excel round-trip', () => {
   it('preserves all schedule rows through export → parse → import', async () => {

@@ -317,7 +317,10 @@ export async function exportScheduleToExcel(params: {
   // Named ranges
   // =========================================================================
   const lastDataRow = DATA_START_ROW + employees.length - 1;
-  workbook.definedNames.add('EmployeeList', `'Labor Schedule'!$A$${DATA_START_ROW}:$A$${lastDataRow}`);
+  workbook.definedNames.add(
+    'EmployeeList',
+    `'Labor Schedule'!$A$${DATA_START_ROW}:$A$${lastDataRow}`,
+  );
   workbook.definedNames.add('TimeValueList', 'TimeValues!$A$1:$A$96');
 
   // =========================================================================
