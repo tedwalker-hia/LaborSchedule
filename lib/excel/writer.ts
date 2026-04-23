@@ -114,10 +114,17 @@ export async function exportScheduleToExcel(params: {
   const { employees, dates, schedule, today } = params;
 
   const workbook = new ExcelJS.Workbook();
-  const ws = workbook.addWorksheet('Labor Schedule');
 
+  // Hidden reference sheet for time-entry dropdowns — spike confirmed that
+  // exceljs 4.x preserves cross-sheet formula refs (pre-4.x dropped them).
   const timeOptions = generateTimeOptions();
-  const timeValidationFormula = `"${timeOptions.join(',')}"`;
+  const tvSheet = workbook.addWorksheet('TimeValues');
+  timeOptions.forEach((label, i) => {
+    tvSheet.getCell(i + 1, 1).value = label; // A1:A96
+  });
+  tvSheet.state = 'hidden';
+
+  const ws = workbook.addWorksheet('Labor Schedule');
 
   const FIXED_COLS = 5;
   const TOTAL_COL = 5;
@@ -272,7 +279,8 @@ export async function exportScheduleToExcel(params: {
           c.protection = { locked: false };
           c.dataValidation = {
             type: 'list',
-            formulae: [timeValidationFormula],
+            allowBlank: true,
+            formulae: ['TimeValues!$A$1:$A$96'],
             showErrorMessage: true,
             errorTitle: 'Invalid Time',
             error: 'Please select a valid time from the list.',
@@ -306,6 +314,64 @@ export async function exportScheduleToExcel(params: {
   }
 
   // =========================================================================
+  // Named ranges
+  // =========================================================================
+  const lastDataRow = DATA_START_ROW + employees.length - 1;
+  workbook.definedNames.add('EmployeeList', `'Labor Schedule'!$A$${DATA_START_ROW}:$A$${lastDataRow}`);
+  workbook.definedNames.add('TimeValueList', 'TimeValues!$A$1:$A$96');
+
+  // =========================================================================
+  // Conditional formatting: weekend / past-date data columns
+  //
+  // DATE(y,m,d)<TODAY() re-evaluates dynamically when Excel recalculates, so
+  // a cell exported as "future" today will flip to past styling automatically.
+  // Past-date gets priority 1 (wins over weekend when both conditions are true).
+  // =========================================================================
+  for (let di = 0; di < dates.length; di++) {
+    const date = dates[di]!;
+    const baseCol = FIXED_COLS + di * 3 + 1;
+    const endCol = baseCol + 2;
+    const startLetter = columnLetter(baseCol);
+    const endLetter = columnLetter(endCol);
+    const cfRef = `${startLetter}${DATA_START_ROW}:${endLetter}${lastDataRow}`;
+
+    const y = date.getFullYear();
+    const m = date.getMonth() + 1;
+    const d = date.getDate();
+
+    ws.addConditionalFormatting({
+      ref: cfRef,
+      rules: [
+        {
+          type: 'expression',
+          formulae: [`DATE(${y},${m},${d})<TODAY()`],
+          style: { fill: PAST_CELL_FILL },
+          priority: 1,
+        },
+      ],
+    });
+
+    if (isWeekend(date)) {
+      ws.addConditionalFormatting({
+        ref: cfRef,
+        rules: [
+          {
+            type: 'expression',
+            formulae: [`WEEKDAY(DATE(${y},${m},${d}),2)>=6`],
+            style: { fill: WEEKEND_FILL },
+            priority: 2,
+          },
+        ],
+      });
+    }
+  }
+
+  // =========================================================================
+  // Frozen panes: G3 (xSplit=6 → columns A–F, ySplit=2 → rows 1–2)
+  // =========================================================================
+  ws.views = [{ state: 'frozen', xSplit: 6, ySplit: 2, topLeftCell: 'G3' }];
+
+  // =========================================================================
   // Sheet protection
   // =========================================================================
   await ws.protect('', {
@@ -324,8 +390,9 @@ export async function exportScheduleToExcel(params: {
     pivotTables: false,
   });
 
-  const arrayBuffer = await workbook.xlsx.writeBuffer();
-  return Buffer.from(arrayBuffer);
+  // ExcelJS Buffer type extends ArrayBuffer; Node Buffer extends Uint8Array.
+  // Types diverge but are runtime-compatible — same pattern as parser.ts.
+  return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
 }
 
 // ---------------------------------------------------------------------------
