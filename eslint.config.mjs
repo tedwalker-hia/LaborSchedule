@@ -9,6 +9,7 @@ export default tseslint.config(
   {
     ignores: [
       '.next/**',
+      'dist/**',
       'node_modules/**',
       'prisma/migrations/**',
       'public/**',

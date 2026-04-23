@@ -41,7 +41,8 @@ async function exportedFormulae(): Promise<string[]> {
   if (!ws) throw new Error('Labor Schedule worksheet not found');
 
   const formulae: string[] = [];
-  for (const cf of (ws as unknown as { conditionalFormattings: { rules: unknown[] }[] }).conditionalFormattings ?? []) {
+  for (const cf of (ws as unknown as { conditionalFormattings: { rules: unknown[] }[] })
+    .conditionalFormattings ?? []) {
     for (const rule of cf.rules) {
       const ruleFormulae =
         ((rule as Record<string, unknown>)['formulae'] as string[] | undefined) ?? [];
