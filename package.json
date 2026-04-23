@@ -29,6 +29,8 @@
     "fixtures:generate": "node --experimental-strip-types scripts/generate-fixtures.ts",
     "parity:baseline": "python3 scripts/capture-python-baseline.py",
     "parity:import": "TESTCONTAINERS_RYUK_DISABLED=true DOCKER_HOST=unix:///run/user/1000/podman/podman.sock node --experimental-strip-types scripts/import-parity.ts",
+    "parity:template": "node --experimental-strip-types scripts/template-parity.ts",
+    "template:generate": "npx tsx scripts/generate-templates.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },

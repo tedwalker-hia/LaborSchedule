@@ -29,6 +29,7 @@
     "node_modules",
     "tests/spikes/**",
     "scripts/check-excel-verdict.ts",
+    "scripts/template-parity.ts",
     "e2e/**",
     "playwright.config.ts"
   ]
