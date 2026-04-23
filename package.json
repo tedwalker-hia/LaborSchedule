@@ -25,6 +25,9 @@
     "spike:named-ranges": "node --experimental-strip-types tests/spikes/excel-named-ranges.ts",
     "spike:conditional-formatting": "node --experimental-strip-types tests/spikes/excel-conditional-formatting.ts",
     "check:excel-verdict": "node --experimental-strip-types scripts/check-excel-verdict.ts",
+    "fixtures:generate": "node --experimental-strip-types scripts/generate-fixtures.ts",
+    "parity:baseline": "python3 scripts/capture-python-baseline.py",
+    "parity:import": "TESTCONTAINERS_RYUK_DISABLED=true DOCKER_HOST=unix:///run/user/1000/podman/podman.sock node --experimental-strip-types scripts/import-parity.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },
