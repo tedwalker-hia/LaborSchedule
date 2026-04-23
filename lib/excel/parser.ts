@@ -110,7 +110,9 @@ export async function parseWorkbook(buffer: Buffer): Promise<ImportPreview> {
   // Buffer is runtime-compatible but TypeScript types diverge, hence the cast.
   await workbook.xlsx.load(buffer as unknown as ExcelJS.Buffer);
 
-  const ws = workbook.getWorksheet(1);
+  // Prefer named sheet so the TimeValues hidden sheet (added first in writer.ts)
+  // doesn't shadow it when looking up by index.
+  const ws = workbook.getWorksheet('Labor Schedule') ?? workbook.getWorksheet(1);
   if (!ws) {
     throw new Error('Workbook contains no worksheets');
   }
