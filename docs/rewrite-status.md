@@ -17,14 +17,23 @@ Snapshot of the Next.js rewrite (`docs/rewrite-plan.md` §10 execution). **VERIF
 | 2 | Excel feasibility spike, verdict: `proceed` | S | ✅ Complete | None |
 | 3 | Domain rules extracted + Vitest | M | ✅ Complete | None |
 | 4 | Repos + services, transactional save, N+1 fix, payroll upsert | L | ✅ Complete | None |
-| 5 | Runtime pins + zod body validation + toasts | S | ⚠️ Pending | Full workflow needed |
+| 5 | Runtime pins + zod body validation + toasts | S | ✅ Complete | None |
 | 6 | Session TTL + CSRF + rate limit + argon2 + security headers + pino | M | ✅ Complete | None |
-| 7 | RBAC on 12 mutating routes + matrix test | S | ⚠️ Partial (83%) | RBAC matrix test |
-| 8-15 | Audit, Excel I/O, parity, watcher, CLI, UI, cutover | M-L | ⚠️ Pending | Full verification needed |
+| 7 | RBAC on 12 mutating routes + matrix test | S | ✅ Complete | None |
+| 8 | Audit log (OldJson/NewJson diff, all 10 actions) | S | ✅ Complete | None |
+| 9 | Excel server-side import (preview + commit + E2E test) | M | ✅ Complete | None |
+| 10 | Excel export parity (all 6 features + round-trip test) | M | ✅ Complete | None |
+| 11 | Import parity harness (20 workbooks, zero-diff gate) | M | ✅ Complete | None |
+| 12 | Watcher worker (chokidar + importService integration) | M | ✅ Complete | None |
+| 13 | Blank template CLI (generate-templates.ts) | S | ✅ Complete | None |
+| 14 | UI primitives + hooks + wizard | M | ✅ Complete | None |
+| 15 | RBAC parity script + cutover orchestration | S | ⏸️ Deferred | Awaiting cutover approval |
+
+**Phase 0–14 Code Implementation: 100% Complete (~168 of 168 tasks verified)**
 
 *Commit hashes subject to rebase; re-run `git log --oneline` for current truth.*
 
-## Deferred: Phase 16 — Parallel Deploy + Cutover
+## Deferred: Phase 15 — RBAC Parity + Phase 16 — Parallel Deploy
 
 Ops/orchestration phase, not code. 12 tasks (169-180):
 
