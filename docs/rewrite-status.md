@@ -13,7 +13,7 @@ Snapshot of the Next.js rewrite (`docs/rewrite-plan.md` §10 execution). **VERIF
 | # | Phase | Size | Status | Blockers |
 |---|-------|------|--------|----------|
 | 0 | Foundations (zod env, Prettier, strict ESLint, `noUncheckedIndexedAccess`) | S | ✅ Complete | None |
-| 1 | Prisma migrations baseline + 5 follow-ups + migrate container | S | ⚠️ Partial (67%) | Dupe audit results, BI_Payroll scope, FK test, docker test |
+| 1 | Prisma migrations baseline + 5 follow-ups + migrate container | S | ✅ Complete | None |
 | 2 | Excel feasibility spike, verdict: `proceed` | S | ✅ Complete | None |
 | 3 | Domain rules extracted + Vitest | M | ⚠️ Pending | Full workflow needed |
 | 4 | Repos + services, transactional save, N+1 fix, payroll upsert | L | ⚠️ Partial (78%) | Transaction wrap in /save, Prisma in auth routes |
