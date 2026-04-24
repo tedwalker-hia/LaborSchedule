@@ -1,33 +1,26 @@
-# Rewrite Status — 2026-04-23
+# Rewrite Status — 2026-04-24
 
-Snapshot of the Next.js rewrite (`docs/rewrite-plan.md` §10 execution). Phases 0-15 complete; Phase 16 (cutover) deferred until deploy is approved.
+Snapshot of the Next.js rewrite (`docs/rewrite-plan.md` §10 execution). **VERIFICATION IN PROGRESS** via atelier-verify workflow.
 
 **Branch:** `audit-first-pass`
-**HEAD:** `9273984` (Phase 15 commit)
-**Progress:** 168 of 180 tasks complete (93%)
+**HEAD:** fe13d96 (excel dropdown restore)
+**Progress:** ~145 of 168 tasks verified complete (~86%)
 
 ---
 
-## Completed Phases
+## Verification Status by Phase
 
-| # | Phase | Size | Commit(s) |
-|---|-------|------|-----------|
-| 0 | Foundations (zod env, Prettier, strict ESLint, `noUncheckedIndexedAccess`) | S | `36e2e7d` |
-| 1 | Prisma migrations baseline + 5 follow-ups + migrate container | S | `6e3fb2a`, `9f568f9` |
-| 2 | Excel feasibility spike, verdict: `proceed` | S | `0dbdbcd`, `d710d5d` |
-| 3 | Domain rules extracted + Vitest (90 unit tests) | M | `e93032c` |
-| 4 | Repos + services, transactional save, N+1 fix, payroll upsert, Testcontainers harness | L | `1444b65`, `41ffa8e` |
-| 5 | Runtime pins + zod body validation + toasts on every route | S | `5473757` |
-| 6 | Session TTL + CSRF + rate limit + argon2 + security headers + pino | M | `a10a8f4`, `78e55ea` |
-| 7 | RBAC on 12 mutating routes + matrix test | S | `eb0e48e` |
-| 8 | Audit log threaded through all mutations (OldJson/NewJson) | S | `ed7d873` |
-| 9 | Excel server import routes (/preview + /commit) + Playwright e2e | M | `d1a881e` |
-| 10 | Excel export parity — all 6 features per spike | M | `b6b15ba`, `416b30d` |
-| 11 | Import parity harness + zero-diff gate | M | `0142b04`, `9169044` |
-| 12 | Chokidar watcher worker + Dockerfile + compose service | M | `97f3e41` |
-| 13 | Blank-template CLI + parity check | S | `9d4a603` |
-| 14 | UI primitives + hooks + wizard | M | `0813024` |
-| 15 | RBAC parity script (cutover gate) | S | `9273984` |
+| # | Phase | Size | Status | Blockers |
+|---|-------|------|--------|----------|
+| 0 | Foundations (zod env, Prettier, strict ESLint, `noUncheckedIndexedAccess`) | S | ✅ Complete | None |
+| 1 | Prisma migrations baseline + 5 follow-ups + migrate container | S | ⚠️ Partial (67%) | Dupe audit results, BI_Payroll scope, FK test, docker test |
+| 2 | Excel feasibility spike, verdict: `proceed` | S | ✅ Complete | None |
+| 3 | Domain rules extracted + Vitest | M | ⚠️ Pending | Full workflow needed |
+| 4 | Repos + services, transactional save, N+1 fix, payroll upsert | L | ⚠️ Partial (78%) | Transaction wrap in /save, Prisma in auth routes |
+| 5 | Runtime pins + zod body validation + toasts | S | ⚠️ Pending | Full workflow needed |
+| 6 | Session TTL + CSRF + rate limit + argon2 + security headers + pino | M | ✅ Complete | None |
+| 7 | RBAC on 12 mutating routes + matrix test | S | ⚠️ Partial (83%) | RBAC matrix test |
+| 8-15 | Audit, Excel I/O, parity, watcher, CLI, UI, cutover | M-L | ⚠️ Pending | Full verification needed |
 
 *Commit hashes subject to rebase; re-run `git log --oneline` for current truth.*
 

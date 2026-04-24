@@ -210,3 +210,56 @@ describe('UserService.list', () => {
     expect(emails).toContain(`alice${EMAIL_DOMAIN}`);
   });
 });
+
+// ─── FK Cascade Delete ───────────────────────────────────────────────────────
+
+describe('FK Cascade Delete: HIALaborSchedulesUsers → assignments', () => {
+  it('deletes cascade: UserTenant, UserHotel, UserDept when user deleted', async () => {
+    // Create user with assignments
+    const user = await prisma.user.create({
+      data: {
+        firstName: 'Grace',
+        lastName: 'Cascade',
+        email: `grace-cascade${EMAIL_DOMAIN}`,
+        role: 'HotelAdmin',
+        passwordHash: null,
+        mustChangePassword: false,
+        isActive: true,
+      },
+    });
+
+    const userId = user.userId;
+
+    // Create assignment records
+    await prisma.userTenant.create({
+      data: { userId, tenant: 'TestTenant' },
+    });
+    await prisma.userHotel.create({
+      data: { userId, tenant: 'TestTenant', hotelName: 'TestHotel' },
+    });
+    await prisma.userDept.create({
+      data: { userId, tenant: 'TestTenant', hotelName: 'TestHotel', deptName: 'TestDept' },
+    });
+
+    // Verify assignments exist
+    const tenantsBeforeDelete = await prisma.userTenant.count({ where: { userId } });
+    const hotelsBeforeDelete = await prisma.userHotel.count({ where: { userId } });
+    const deptsBeforeDelete = await prisma.userDept.count({ where: { userId } });
+
+    expect(tenantsBeforeDelete).toBe(1);
+    expect(hotelsBeforeDelete).toBe(1);
+    expect(deptsBeforeDelete).toBe(1);
+
+    // Hard delete user
+    await prisma.user.delete({ where: { userId } });
+
+    // Verify cascade deleted all assignments
+    const tenantsAfterDelete = await prisma.userTenant.count({ where: { userId } });
+    const hotelsAfterDelete = await prisma.userHotel.count({ where: { userId } });
+    const deptsAfterDelete = await prisma.userDept.count({ where: { userId } });
+
+    expect(tenantsAfterDelete).toBe(0);
+    expect(hotelsAfterDelete).toBe(0);
+    expect(deptsAfterDelete).toBe(0);
+  });
+});

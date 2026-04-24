@@ -4,7 +4,9 @@ const schema = z.object({
   JWT_SECRET: z
     .string({ message: 'JWT_SECRET is required' })
     .min(32, { message: 'JWT_SECRET must be at least 32 characters' }),
-  DATABASE_URL: z.string({ message: 'DATABASE_URL is required' }).min(1, { message: 'DATABASE_URL is required' }),
+  DATABASE_URL: z
+    .string({ message: 'DATABASE_URL is required' })
+    .min(1, { message: 'DATABASE_URL is required' }),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 });
 

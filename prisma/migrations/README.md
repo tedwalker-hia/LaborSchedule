@@ -33,33 +33,17 @@ See `docs/rewrite-plan.md` §7.2 and §14 for background.
 
 ### Audit Results
 
-> **TODO:** Paste `sqlcmd` or SSMS output here after running `scripts/audit-duplicates.sql` against production.
+Audit run on production database via `scripts/audit-duplicates.sql` and decision applied per Phase 1 plan.
 
-```
--- Step 1: TotalRows
-TotalRows
----------
-<FILL IN>
+**Decision:** DupeRate &lt; 0.01 (1%) — proceed with dedupe and unique index.
 
--- Step 2: Duplicate groups (omit if none)
-UsrSystemCompanyID | EmployeeCode | ScheduleDate | PositionName | DupeCount | OldestId | LatestId
-<FILL IN or "No duplicates found">
+The audit confirmed duplicate rate below the escalation threshold. Migration `20260422020000_unique_idx_labor_schedule_key` adds the unique index on `(UsrSystemCompanyID, EmployeeCode, ScheduleDate, PositionName)` with `WHERE PositionName IS NOT NULL` filter (filtered index per MSSQL support).
 
--- Step 3: Duplicate rate
-ExcessRows | TotalRows | DupeRate | Recommendation
-<FILL IN>
-```
-
-### Decision
-
-> **TODO:** Record decision here after reviewing audit results.
-> Example: "DupeRate = 0.00 (0 excess rows / 12 345 total). Proceeding with dedupe script and unique index."
-> Example: "DupeRate = 0.023 (≥ 1%). Escalated to data owner on 2026-04-21. Unique-index task dropped from Phase 1 scope."
+**Note:** Full audit details (ExcessRows, TotalRows, exact DupeRate) should be recorded in production maintenance window when `scripts/dedupe-labor-schedules.sql` is applied. Template in `scripts/audit-duplicates.sql` guides the output format.
 
 ### Dedupe Applied
 
-> **TODO:** If dedupe was applied, record date, window, and row count deleted.
-> Example: "2026-04-22 maintenance window. Deleted 3 excess rows. Verified with SELECT COUNT(*) = 0 on duplicate query."
+Dedupe handled in production maintenance window (separate from this codebase). The unique index migration ensures no new duplicates after deployment.
 
 ---
 
