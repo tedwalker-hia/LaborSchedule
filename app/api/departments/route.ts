@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { makeOrgRepo } from '@/lib/repositories/org-repo';
 import { getUserPermissions } from '@/lib/auth/rbac';
 import logger from '@/lib/logger';
 
@@ -43,15 +43,8 @@ export async function GET(request: NextRequest) {
     }
 
     // All other roles: all departments at the hotel
-    const rows = await prisma.laborSchedule.findMany({
-      distinct: ['deptName'],
-      where: {
-        hotelName: hotel,
-        usrSystemCompanyId,
-        deptName: { not: '' },
-      },
-      select: { deptName: true },
-    });
+    const orgRepo = makeOrgRepo();
+    const rows = await orgRepo.findDepts({ hotelName: hotel, usrSystemCompanyId });
 
     const departments = rows
       .map((r) => r.deptName)

@@ -1,31 +1,11 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { makeScheduleService } from '@/lib/services/schedule-service';
 import { getUserPermissions } from '@/lib/auth/rbac';
 import logger from '@/lib/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-interface ScheduleEntry {
-  id: number;
-  clockIn: string | null;
-  clockOut: string | null;
-  hours: number | null;
-  deptName: string | null;
-  positionName: string | null;
-  locked: boolean | null;
-}
-
-interface EmployeeInfo {
-  code: string;
-  firstName: string | null;
-  lastName: string | null;
-  deptName: string;
-  positionName: string;
-  multiDept: boolean;
-  depts: Set<string>;
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -107,127 +87,28 @@ export async function GET(request: NextRequest) {
       where.deptName = { in: allowedDepts };
     }
 
-    if (dept) {
-      where.deptName = dept;
-    }
-
-    if (position) {
-      where.positionName = position;
-    }
-
-    // Fetch schedule entries
-    const rows = await prisma.laborSchedule.findMany({
-      where,
-      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }, { scheduleDate: 'asc' }],
-    });
-
-    // Build employee list and schedule map
-    const employeeMap = new Map<string, EmployeeInfo>();
-    const schedule: Record<string, Record<string, ScheduleEntry>> = {};
-
-    for (const row of rows) {
-      const code = row.employeeCode;
-      const rowDept = row.deptName ?? '';
-      const rowPos = row.positionName ?? '';
-
-      const existing = employeeMap.get(code);
-      if (!existing) {
-        employeeMap.set(code, {
-          code,
-          firstName: row.firstName,
-          lastName: row.lastName,
-          deptName: rowDept,
-          positionName: rowPos,
-          multiDept: false,
-          depts: new Set(rowDept ? [rowDept] : []),
-        });
-      } else if (rowDept) {
-        existing.depts.add(rowDept);
-        if (existing.depts.size > 1) existing.multiDept = true;
+    // Determine deptNames for service call (handles DeptAdmin restriction)
+    let deptNames: string[] | undefined;
+    if (role === 'DeptAdmin' && 'deptName' in where) {
+      const deptFilter = where.deptName as Record<string, unknown>;
+      if ('in' in deptFilter) {
+        deptNames = deptFilter.in as string[];
       }
-
-      if (!schedule[code]) {
-        schedule[code] = {};
-      }
-
-      const dateKey = row.scheduleDate.toISOString().split('T')[0]!;
-      schedule[code][dateKey] = {
-        id: row.id,
-        clockIn: row.clockIn,
-        clockOut: row.clockOut,
-        hours: row.hours ? Number(row.hours) : null,
-        deptName: row.deptName,
-        positionName: row.positionName,
-        locked: row.locked,
-      };
     }
 
-    const employees = Array.from(employeeMap.values())
-      .sort((a, b) => {
-        const lastCmp = (a.lastName ?? '').localeCompare(b.lastName ?? '');
-        if (lastCmp !== 0) return lastCmp;
-        return (a.firstName ?? '').localeCompare(b.firstName ?? '');
-      })
-      .map(({ depts: _depts, ...rest }) => rest);
-
-    // Fetch all departments and positions for inline editing dropdowns
-    const deptWhere: Record<string, unknown> = {
-      hotelName: hotel,
+    // Fetch schedule grid data via service
+    const service = makeScheduleService();
+    const grid = await service.findScheduleGrid({
       usrSystemCompanyId,
-      deptName: { not: '' },
-    };
-
-    const deptRows = await prisma.laborSchedule.findMany({
-      distinct: ['deptName'],
-      where: deptWhere,
-      select: { deptName: true },
+      hotelName: hotel,
+      startDate: start,
+      endDate: end,
+      dept: dept ?? undefined,
+      position: position ?? undefined,
+      deptNames,
     });
 
-    const allDepts = deptRows
-      .map((r) => r.deptName)
-      .filter((d): d is string => d !== null && d !== '')
-      .sort();
-
-    const positionRows = await prisma.laborSchedule.findMany({
-      distinct: ['positionName'],
-      where: {
-        hotelName: hotel,
-        usrSystemCompanyId,
-        positionName: { not: '' },
-      },
-      select: { positionName: true },
-    });
-
-    const allPositions = positionRows
-      .map((r) => r.positionName)
-      .filter((p): p is string => p !== null && p !== '')
-      .sort();
-
-    // Build positions by department
-    const positionsByDeptRows = await prisma.laborSchedule.groupBy({
-      by: ['deptName', 'positionName'],
-      where: {
-        hotelName: hotel,
-        usrSystemCompanyId,
-        deptName: { not: '' },
-        positionName: { not: '' },
-      },
-    });
-
-    const positionsByDept: Record<string, string[]> = {};
-    for (const row of positionsByDeptRows) {
-      if (row.deptName && row.positionName) {
-        if (!positionsByDept[row.deptName]) {
-          positionsByDept[row.deptName] = [];
-        }
-        positionsByDept[row.deptName]!.push(row.positionName);
-      }
-    }
-
-    // Sort positions within each department
-    for (const dept of Object.keys(positionsByDept)) {
-      positionsByDept[dept]!.sort();
-    }
+    const { employees, schedule, allDepts, allPositions, positionsByDept } = grid;
 
     return NextResponse.json({
       dates,

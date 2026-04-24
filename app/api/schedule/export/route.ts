@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { makeExportService } from '@/lib/services/export-service';
 import { exportScheduleToExcel } from '@/lib/excel/writer';
 import { getCurrentUser } from '@/lib/auth/current-user';
 import { getUserPermissions } from '@/lib/auth/rbac';
@@ -57,48 +57,24 @@ export async function GET(request: NextRequest) {
     if (dept) where.deptName = dept;
     if (position) where.positionName = position;
 
-    const empRows = await prisma.laborSchedule.findMany({
-      where,
-      distinct: ['employeeCode', 'firstName', 'lastName', 'deptName', 'positionName'],
-      select: {
-        employeeCode: true,
-        firstName: true,
-        lastName: true,
-        deptName: true,
-        positionName: true,
-      },
-      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+    // Get export data via service
+    const exportService = makeExportService();
+    const { employees: empList, schedule: scheduleRows } = await exportService.getExportData({
+      usrSystemCompanyId,
+      hotelName: hotel,
+      startDate,
+      endDate,
+      dept,
+      position,
     });
 
-    const employees = empRows.map((e) => ({
-      code: e.employeeCode,
+    const employees = empList.map((e) => ({
+      code: e.code,
       firstName: e.firstName || '',
       lastName: e.lastName || '',
       deptName: e.deptName || '',
       positionName: e.positionName || '',
     }));
-
-    // Get schedule data
-    const empCodes = employees.map((e) => e.code);
-    const scheduleRows =
-      empCodes.length > 0
-        ? await prisma.laborSchedule.findMany({
-            where: {
-              hotelName: hotel,
-              usrSystemCompanyId,
-              scheduleDate: { gte: startDate, lte: endDate },
-              employeeCode: { in: empCodes },
-            },
-            select: {
-              employeeCode: true,
-              scheduleDate: true,
-              clockIn: true,
-              clockOut: true,
-              hours: true,
-            },
-            orderBy: [{ employeeCode: 'asc' }, { scheduleDate: 'asc' }],
-          })
-        : [];
 
     const schedule: Record<
       string,

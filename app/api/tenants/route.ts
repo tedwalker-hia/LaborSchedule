@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { makeOrgRepo } from '@/lib/repositories/org-repo';
 import { getUserPermissions } from '@/lib/auth/rbac';
 import logger from '@/lib/logger';
 
@@ -21,11 +21,8 @@ export async function GET(request: NextRequest) {
     }
 
     if (checker.isSuperAdmin()) {
-      const rows = await prisma.laborSchedule.findMany({
-        distinct: ['tenant'],
-        where: { tenant: { not: '' } },
-        select: { tenant: true },
-      });
+      const orgRepo = makeOrgRepo();
+      const rows = await orgRepo.findTenants();
       const tenants = rows
         .map((r) => r.tenant)
         .filter((t): t is string => t !== null && t !== '')

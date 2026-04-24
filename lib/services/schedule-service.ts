@@ -541,6 +541,124 @@ export class ScheduleService {
 
     return { newEmployees, removedEmployees };
   }
+
+  async findScheduleGrid(params: {
+    usrSystemCompanyId: string;
+    hotelName: string;
+    startDate: Date;
+    endDate: Date;
+    dept?: string;
+    position?: string;
+    deptNames?: string[];
+  }) {
+    const [rows, allDepts, allPositions, positionsByDept] = await Promise.all([
+      this.repo.findByHotelDate({
+        usrSystemCompanyId: params.usrSystemCompanyId,
+        hotelName: params.hotelName,
+        startDate: params.startDate,
+        endDate: params.endDate,
+        deptName: params.dept,
+        deptNames: params.deptNames,
+        positionName: params.position,
+      }),
+      this.repo.findDistinctDepts({
+        usrSystemCompanyId: params.usrSystemCompanyId,
+        hotelName: params.hotelName,
+      }),
+      this.repo.findDistinctPositions({
+        usrSystemCompanyId: params.usrSystemCompanyId,
+        hotelName: params.hotelName,
+      }),
+      this.repo.findPositionsByDept({
+        usrSystemCompanyId: params.usrSystemCompanyId,
+        hotelName: params.hotelName,
+      }),
+    ]);
+
+    // Build employee map (unique employees by code, track multi-dept)
+    const employeeMap = new Map<
+      string,
+      {
+        code: string;
+        firstName: string | null;
+        lastName: string | null;
+        deptName: string;
+        positionName: string;
+        multiDept: boolean;
+        depts: Set<string>;
+      }
+    >();
+
+    for (const row of rows) {
+      const existing = employeeMap.get(row.employeeCode);
+      if (!existing) {
+        employeeMap.set(row.employeeCode, {
+          code: row.employeeCode,
+          firstName: row.firstName,
+          lastName: row.lastName,
+          deptName: row.deptName || '',
+          positionName: row.positionName || '',
+          multiDept: false,
+          depts: new Set([row.deptName || '']),
+        });
+      } else {
+        if (row.deptName && row.deptName !== existing.deptName) {
+          existing.multiDept = true;
+          existing.depts.add(row.deptName);
+        }
+      }
+    }
+
+    // Build schedule map (employeeCode -> dateKey -> ScheduleEntry)
+    const schedule: Record<string, Record<string, { clockIn: string; clockOut: string; hours: number | null; deptName: string; positionName: string; locked: boolean }>> = {};
+    for (const row of rows) {
+      const code = row.employeeCode;
+      const dateKey = row.scheduleDate.toISOString().split('T')[0]!;
+      if (!schedule[code]) {
+        schedule[code] = {};
+      }
+      schedule[code][dateKey] = {
+        clockIn: row.clockIn || '',
+        clockOut: row.clockOut || '',
+        hours: row.hours ? Number(row.hours) : null,
+        deptName: row.deptName || '',
+        positionName: row.positionName || '',
+        locked: row.locked || false,
+      };
+    }
+
+    const employees = Array.from(employeeMap.values()).map((e) => ({
+      code: e.code,
+      firstName: e.firstName || '',
+      lastName: e.lastName || '',
+      deptName: e.deptName,
+      positionName: e.positionName,
+      multiDept: e.multiDept,
+      depts: Array.from(e.depts),
+    }));
+
+    const depts = allDepts.map((d) => d.deptName).filter((d): d is string => d !== null && d !== '');
+    const positions = allPositions.map((p) => p.positionName).filter((p): p is string => p !== null && p !== '');
+
+    const positionsByDeptMap: Record<string, string[]> = {};
+    for (const row of positionsByDept) {
+      const dept = row.deptName || '';
+      if (!positionsByDeptMap[dept]) {
+        positionsByDeptMap[dept] = [];
+      }
+      if (row.positionName) {
+        positionsByDeptMap[dept].push(row.positionName);
+      }
+    }
+
+    return {
+      employees,
+      schedule,
+      allDepts: depts,
+      allPositions: positions,
+      positionsByDept: positionsByDeptMap,
+    };
+  }
 }
 
 export function makeScheduleService(

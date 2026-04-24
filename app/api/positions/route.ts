@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { makeOrgRepo } from '@/lib/repositories/org-repo';
 import logger from '@/lib/logger';
 
 export const runtime = 'nodejs';
@@ -25,20 +25,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const where: Record<string, unknown> = {
+    const orgRepo = makeOrgRepo();
+    const rows = await orgRepo.findPositions({
       hotelName: hotel,
       usrSystemCompanyId,
-      positionName: { not: '' },
-    };
-
-    if (dept) {
-      where.deptName = dept;
-    }
-
-    const rows = await prisma.laborSchedule.findMany({
-      distinct: ['positionName'],
-      where,
-      select: { positionName: true },
+      deptName: dept ?? undefined,
     });
 
     const positions = rows
