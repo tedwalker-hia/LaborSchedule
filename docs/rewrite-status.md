@@ -16,7 +16,7 @@ Snapshot of the Next.js rewrite (`docs/rewrite-plan.md` §10 execution). **VERIF
 | 1 | Prisma migrations baseline + 5 follow-ups + migrate container | S | ✅ Complete | None |
 | 2 | Excel feasibility spike, verdict: `proceed` | S | ✅ Complete | None |
 | 3 | Domain rules extracted + Vitest | M | ✅ Complete | None |
-| 4 | Repos + services, transactional save, N+1 fix, payroll upsert | L | ⚠️ Partial (89%) | 5 aggregate routes still need query service layer |
+| 4 | Repos + services, transactional save, N+1 fix, payroll upsert | L | ✅ Complete | None |
 | 5 | Runtime pins + zod body validation + toasts | S | ⚠️ Pending | Full workflow needed |
 | 6 | Session TTL + CSRF + rate limit + argon2 + security headers + pino | M | ✅ Complete | None |
 | 7 | RBAC on 12 mutating routes + matrix test | S | ⚠️ Partial (83%) | RBAC matrix test |
