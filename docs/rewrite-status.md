@@ -15,7 +15,7 @@ Snapshot of the Next.js rewrite (`docs/rewrite-plan.md` §10 execution). **VERIF
 | 0 | Foundations (zod env, Prettier, strict ESLint, `noUncheckedIndexedAccess`) | S | ✅ Complete | None |
 | 1 | Prisma migrations baseline + 5 follow-ups + migrate container | S | ✅ Complete | None |
 | 2 | Excel feasibility spike, verdict: `proceed` | S | ✅ Complete | None |
-| 3 | Domain rules extracted + Vitest | M | ⚠️ Pending | Full workflow needed |
+| 3 | Domain rules extracted + Vitest | M | ✅ Complete | None |
 | 4 | Repos + services, transactional save, N+1 fix, payroll upsert | L | ⚠️ Partial (78%) | Transaction wrap in /save, Prisma in auth routes |
 | 5 | Runtime pins + zod body validation + toasts | S | ⚠️ Pending | Full workflow needed |
 | 6 | Session TTL + CSRF + rate limit + argon2 + security headers + pino | M | ✅ Complete | None |
