@@ -37,6 +37,8 @@ interface ScheduleGridProps {
   selectedEmployees: Set<string>;
   recordChange: (rowKey: string, date: string, field: string, value: string) => void;
   toggleEmployee: (empCode: string) => void;
+  selectAllEmployees: () => void;
+  deselectAllEmployees: () => void;
   getEffectiveValue: (rowKey: string, date: string, field: string) => string | number;
 }
 
@@ -297,12 +299,22 @@ function ScheduleGrid({
   selectedEmployees,
   recordChange,
   toggleEmployee,
+  selectAllEmployees,
+  deselectAllEmployees,
   getEffectiveValue,
 }: ScheduleGridProps) {
   const today = useMemo(() => new Date().toISOString().split('T')[0]!, []);
   const todayDate = useMemo(() => startOfDay(parseISO(today)), [today]);
 
   const frozenStickyHeader = `sticky z-30 ${HEADER_BASE}`;
+
+  const totalEmployees = data.employees.length;
+  const selectedCount = data.employees.reduce(
+    (n, e) => n + (selectedEmployees.has(e.code) ? 1 : 0),
+    0,
+  );
+  const allSelected = totalEmployees > 0 && selectedCount === totalEmployees;
+  const someSelected = selectedCount > 0 && selectedCount < totalEmployees;
 
   return (
     <div className="overflow-auto border rounded-xl bg-white dark:bg-slate-800 max-h-[calc(100vh-280px)]">
@@ -312,11 +324,21 @@ function ScheduleGrid({
           <tr>
             {/* Frozen header cells */}
             <th
-              className={`${frozenStickyHeader}`}
+              className={`${frozenStickyHeader} text-center`}
               style={{ left: FROZEN_LEFTS.checkbox, minWidth: FROZEN_WIDTHS.checkbox }}
               rowSpan={2}
             >
-              &nbsp;
+              <input
+                type="checkbox"
+                aria-label={allSelected ? 'Deselect all employees' : 'Select all employees'}
+                checked={allSelected}
+                ref={(el) => {
+                  if (el) el.indeterminate = someSelected;
+                }}
+                onChange={() => (allSelected ? deselectAllEmployees() : selectAllEmployees())}
+                disabled={totalEmployees === 0}
+                className="rounded border-gray-300 dark:border-slate-500"
+              />
             </th>
             <th
               className={`${frozenStickyHeader} text-left`}

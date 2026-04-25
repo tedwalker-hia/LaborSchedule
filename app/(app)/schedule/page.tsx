@@ -107,6 +107,8 @@ export default function SchedulePage() {
           getEffectiveValue={getEffectiveValue}
           recordChange={recordChange}
           toggleEmployee={toggleEmployee}
+          selectAllEmployees={selectAllEmployees}
+          deselectAllEmployees={deselectAllEmployees}
         />
       ) : (
         !loading && (
