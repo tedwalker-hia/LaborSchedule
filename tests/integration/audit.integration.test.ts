@@ -25,6 +25,7 @@ import type { EmployeeHistory } from '@/lib/domain/types';
 
 const COMPANY = 'INTTEST_AUDSCHED';
 const USER_EMAIL_DOMAIN = '@inttest-aud.local';
+const TEST_PW = process.env.TEST_USER_PASSWORD ?? 'Test@1234';
 
 let CTX: AuditCtx;
 let fixtureUserId: number;
@@ -415,7 +416,7 @@ describe('audit: user.create', () => {
         firstName: 'AudCreate',
         lastName: 'Test',
         email: `aud-create${USER_EMAIL_DOMAIN}`,
-        password: 'Test@1234',
+        password: TEST_PW,
         role: 'DeptAdmin',
       },
       CTX,
@@ -444,7 +445,7 @@ describe('audit: user.update', () => {
         firstName: 'AudUpdate',
         lastName: 'Test',
         email: `aud-update${USER_EMAIL_DOMAIN}`,
-        password: 'Test@1234',
+        password: TEST_PW,
         role: 'DeptAdmin',
       },
       CTX,
@@ -485,7 +486,7 @@ describe('audit: user.delete', () => {
         firstName: 'AudDelete',
         lastName: 'Test',
         email: `aud-delete${USER_EMAIL_DOMAIN}`,
-        password: 'Test@1234',
+        password: TEST_PW,
         role: 'DeptAdmin',
       },
       CTX,
@@ -514,7 +515,7 @@ describe('audit: user.password-reset', () => {
         firstName: 'AudReset',
         lastName: 'Test',
         email: `aud-reset${USER_EMAIL_DOMAIN}`,
-        password: 'Test@1234',
+        password: TEST_PW,
         role: 'DeptAdmin',
       },
       CTX,

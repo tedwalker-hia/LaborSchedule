@@ -1,0 +1,7 @@
+version: 2
+
+# Sample/template files that intentionally ship dummy credentials so devs and
+# tests have working defaults. The real .env (with production-like values) is
+# gitignored and remains in scope for scanning.
+paths-ignore:
+  - ".env.example"

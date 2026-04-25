@@ -15,7 +15,7 @@ import { GenericContainer, Wait } from 'testcontainers';
 import type { StartedTestContainer } from 'testcontainers';
 import { PrismaClient } from '@prisma/client';
 
-const SA_PASSWORD = 'IntTest_Pa55w!';
+const SA_PASSWORD = process.env.TEST_DB_SA_PASSWORD ?? 'IntTest_Pa55w!';
 const TEST_DB = 'LaborScheduleIntTest';
 
 type FixtureRecord = {

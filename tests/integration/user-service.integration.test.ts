@@ -14,6 +14,8 @@ import { makeAuditRepo } from '@/lib/repositories/audit-repo';
 import type { AuditCtx } from '@/lib/services/audit-service';
 
 const EMAIL_DOMAIN = '@inttest-usr.local';
+const TEST_PW = process.env.TEST_USER_PASSWORD ?? 'Test@1234';
+const TEST_PW_ALT = process.env.TEST_USER_PASSWORD_ALT ?? 'Test@5678';
 
 let CTX: AuditCtx;
 let fixtureUserId: number;
@@ -58,7 +60,7 @@ describe('UserService.create', () => {
         firstName: 'Alice',
         lastName: 'Int',
         email: `alice${EMAIL_DOMAIN}`,
-        password: 'Test@1234',
+        password: TEST_PW,
         role: 'HotelAdmin',
       },
       CTX,
@@ -76,7 +78,7 @@ describe('UserService.create', () => {
         firstName: 'Bob',
         lastName: 'Int',
         email: `Bob.Case${EMAIL_DOMAIN}`,
-        password: 'Test@1234',
+        password: TEST_PW,
         role: 'DeptAdmin',
       },
       CTX,
@@ -88,13 +90,13 @@ describe('UserService.create', () => {
   it('throws EmailConflictError when email already exists', async () => {
     const email = `carol${EMAIL_DOMAIN}`;
     await svc.create(
-      { firstName: 'Carol', lastName: 'Int', email, password: 'Test@1234', role: 'HotelAdmin' },
+      { firstName: 'Carol', lastName: 'Int', email, password: TEST_PW, role: 'HotelAdmin' },
       CTX,
     );
 
     await expect(
       svc.create(
-        { firstName: 'Carol2', lastName: 'Int', email, password: 'Test@5678', role: 'DeptAdmin' },
+        { firstName: 'Carol2', lastName: 'Int', email, password: TEST_PW_ALT, role: 'DeptAdmin' },
         CTX,
       ),
     ).rejects.toThrow(EmailConflictError);
@@ -110,7 +112,7 @@ describe('UserService.get', () => {
         firstName: 'Dave',
         lastName: 'Int',
         email: `dave${EMAIL_DOMAIN}`,
-        password: 'Test@1234',
+        password: TEST_PW,
         role: 'CompanyAdmin',
       },
       CTX,
@@ -136,7 +138,7 @@ describe('UserService.update', () => {
         firstName: 'Eve',
         lastName: 'Int',
         email: `eve${EMAIL_DOMAIN}`,
-        password: 'Test@1234',
+        password: TEST_PW,
         role: 'DeptAdmin',
       },
       CTX,
@@ -179,7 +181,7 @@ describe('UserService.delete', () => {
         firstName: 'Frank',
         lastName: 'Int',
         email: `frank${EMAIL_DOMAIN}`,
-        password: 'Test@1234',
+        password: TEST_PW,
         role: 'DeptAdmin',
       },
       CTX,

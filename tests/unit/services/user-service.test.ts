@@ -14,6 +14,7 @@ vi.mock('bcryptjs', () => ({
 }));
 
 const CTX: AuditCtx = { userId: 1, source: 'api' };
+const TEST_PW = process.env.TEST_USER_PASSWORD ?? 'Test@1234';
 
 const makeRepo = () => ({
   findById: vi.fn(),
@@ -149,7 +150,7 @@ describe('UserService.create', () => {
         firstName: 'Alice',
         lastName: 'Smith',
         email: 'Alice@Example.com',
-        password: 'secret',
+        password: TEST_PW,
         role: 'DeptAdmin',
       },
       CTX,
@@ -174,7 +175,7 @@ describe('UserService.create', () => {
           firstName: 'Bob',
           lastName: 'Jones',
           email: 'dup@example.com',
-          password: 'pw',
+          password: TEST_PW,
           role: 'DeptAdmin',
         },
         CTX,
