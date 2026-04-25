@@ -3,6 +3,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { format, addDays, subDays } from 'date-fns';
 import { calcHours } from '@/lib/domain/rules';
+import { useSelectedHotel } from '@/lib/selected-hotel-context';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -57,6 +58,8 @@ export interface HotelOption {
 // ── Hook ───────────────────────────────────────────────────────────────────────
 
 export function useScheduleState() {
+  const { setHotelName } = useSelectedHotel();
+
   // Filter state
   const [filters, setFilters] = useState<FilterState>({
     tenant: '',
@@ -316,6 +319,11 @@ export function useScheduleState() {
     filters.endDate,
     loadSchedule,
   ]);
+
+  // Publish current hotel selection to the global header.
+  useEffect(() => {
+    setHotelName(filters.hotel || null);
+  }, [filters.hotel, setHotelName]);
 
   // ── Computed ───────────────────────────────────────────────────────────────
 
