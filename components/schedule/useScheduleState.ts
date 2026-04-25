@@ -7,6 +7,7 @@ import { calcHours } from '@/lib/domain/rules';
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 export interface ScheduleEmployee {
+  rowKey: string;
   code: string;
   firstName: string;
   lastName: string;
@@ -71,10 +72,10 @@ export function useScheduleState() {
   const [data, setData] = useState<ScheduleData | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Change tracking — keyed by `${empCode}|${date}`
+  // Change tracking — keyed by `${rowKey}|${date}` where rowKey is `${empCode}|${positionName}`.
   const [changes, setChanges] = useState<Record<string, ScheduleChange>>({});
 
-  // Selection
+  // Selection — Set of employee codes (selecting a person selects all their position rows).
   const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(new Set());
 
   // Dropdown options
@@ -184,9 +185,9 @@ export function useScheduleState() {
   // ── Change tracking ────────────────────────────────────────────────────────
 
   const recordChange = useCallback(
-    (empCode: string, date: string, field: string, value: string | number) => {
+    (rowKey: string, date: string, field: string, value: string | number) => {
       setChanges((prev) => {
-        const key = `${empCode}|${date}`;
+        const key = `${rowKey}|${date}`;
         const existing = prev[key] ?? {};
         const updated = { ...existing, [field]: value } as ScheduleChange;
 
@@ -195,8 +196,7 @@ export function useScheduleState() {
           const clockIn = field === 'clockIn' ? (value as string) : updated.clockIn;
           const clockOut = field === 'clockOut' ? (value as string) : updated.clockOut;
 
-          // Fall back to original data if one side is missing from changes
-          const origEntry = data?.schedule?.[empCode]?.[date];
+          const origEntry = data?.schedule?.[rowKey]?.[date];
           const effectiveIn = clockIn ?? origEntry?.clockIn;
           const effectiveOut = clockOut ?? origEntry?.clockOut;
 
@@ -215,14 +215,14 @@ export function useScheduleState() {
   );
 
   const getEffectiveValue = useCallback(
-    (empCode: string, date: string, field: string): string | number => {
-      const key = `${empCode}|${date}`;
+    (rowKey: string, date: string, field: string): string | number => {
+      const key = `${rowKey}|${date}`;
       const change = changes[key];
       const f = field as keyof ScheduleChange;
       if (change && change[f] !== undefined) {
         return change[f] as string | number;
       }
-      const entry = data?.schedule?.[empCode]?.[date];
+      const entry = data?.schedule?.[rowKey]?.[date];
       if (entry) {
         return entry[field as keyof ScheduleEntry] as string | number;
       }
@@ -236,16 +236,31 @@ export function useScheduleState() {
   }, []);
 
   const saveChanges = useCallback(async () => {
+    if (!filters.hotelInfo) return;
     setLoading(true);
     try {
+      // Flatten the change map (`${empCode}|${positionName}|${date}` -> ScheduleChange)
+      // into the array shape expected by /api/schedule/save.
+      const changeList = Object.entries(changes).map(([key, value]) => {
+        const [employeeCode = '', positionName = '', date = ''] = key.split('|');
+        return {
+          employeeCode,
+          positionName: positionName || null,
+          date,
+          clockIn: value.clockIn ?? null,
+          clockOut: value.clockOut ?? null,
+        };
+      });
+
       const res = await fetch('/api/schedule/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tenant: filters.tenant,
           hotel: filters.hotel,
-          hotelInfo: filters.hotelInfo,
-          changes,
+          branchId: filters.hotelInfo.branchId,
+          usrSystemCompanyId: filters.hotelInfo.usrSystemCompanyId,
+          changes: changeList,
         }),
       });
       if (!res.ok) throw new Error('Failed to save changes');

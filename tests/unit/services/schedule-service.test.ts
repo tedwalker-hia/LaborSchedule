@@ -474,3 +474,135 @@ describe('ScheduleService.checkLocked', () => {
     );
   });
 });
+
+// ------- findScheduleGrid — multiDept aggregation -------
+
+const makeGridRepo = () => ({
+  findByHotelDate: vi.fn(),
+  findDistinctDepts: vi.fn().mockResolvedValue([]),
+  findDistinctPositions: vi.fn().mockResolvedValue([]),
+  findPositionsByDept: vi.fn().mockResolvedValue([]),
+  // remaining repo methods not exercised by this path
+  findFirst: vi.fn(),
+  create: vi.fn(),
+  deleteById: vi.fn(),
+  updateLocked: vi.fn(),
+  clearRange: vi.fn(),
+  deleteRange: vi.fn(),
+  findLocked: vi.fn(),
+});
+
+const makeRow = (overrides: Partial<{
+  employeeCode: string;
+  firstName: string;
+  lastName: string;
+  deptName: string;
+  positionName: string;
+}>) => ({
+  employeeCode: 'E001',
+  firstName: 'Jane',
+  lastName: 'Doe',
+  deptName: 'Front Desk',
+  positionName: 'Agent',
+  scheduleDate: new Date('2024-01-01'),
+  clockIn: '8:00 AM',
+  clockOut: '5:00 PM',
+  hours: 9,
+  locked: false,
+  ...overrides,
+});
+
+const GRID_PARAMS = {
+  usrSystemCompanyId: 'CO1',
+  hotelName: 'Hotel A',
+  startDate: new Date('2024-01-01'),
+  endDate: new Date('2024-01-07'),
+};
+
+describe('ScheduleService.findScheduleGrid — multiDept flag', () => {
+  let svc: ScheduleService;
+  let gridRepo: ReturnType<typeof makeGridRepo>;
+
+  beforeEach(() => {
+    gridRepo = makeGridRepo();
+    svc = new ScheduleService(
+      gridRepo as any,
+      makeDb() as any,
+      undefined as any,
+      makeAuditSvc() as any,
+    );
+  });
+
+  it('single position: one row, multiDept is false', async () => {
+    gridRepo.findByHotelDate.mockResolvedValue([
+      makeRow({ positionName: 'Agent', deptName: 'Front Desk' }),
+    ]);
+
+    const result = await svc.findScheduleGrid(GRID_PARAMS);
+
+    expect(result.employees).toHaveLength(1);
+    expect(result.employees[0]!.multiDept).toBe(false);
+    expect(result.employees[0]!.rowKey).toBe('E001|Agent');
+  });
+
+  it('two positions same dept: emits two rows, both multiDept=true', async () => {
+    gridRepo.findByHotelDate.mockResolvedValue([
+      makeRow({ positionName: 'Agent', deptName: 'Front Desk' }),
+      makeRow({ positionName: 'Supervisor', deptName: 'Front Desk' }),
+    ]);
+
+    const result = await svc.findScheduleGrid(GRID_PARAMS);
+
+    expect(result.employees).toHaveLength(2);
+    expect(result.employees.every((e) => e.code === 'E001')).toBe(true);
+    expect(result.employees.every((e) => e.multiDept === true)).toBe(true);
+    expect(result.employees.map((e) => e.positionName).sort()).toEqual(['Agent', 'Supervisor']);
+  });
+
+  it('two positions different dept: emits two rows, multiDept=true', async () => {
+    gridRepo.findByHotelDate.mockResolvedValue([
+      makeRow({ positionName: 'Agent', deptName: 'Front Desk' }),
+      makeRow({ positionName: 'Housekeeper', deptName: 'Housekeeping' }),
+    ]);
+
+    const result = await svc.findScheduleGrid(GRID_PARAMS);
+
+    expect(result.employees).toHaveLength(2);
+    expect(result.employees.every((e) => e.multiDept === true)).toBe(true);
+    expect(result.employees.map((e) => e.deptName).sort()).toEqual([
+      'Front Desk',
+      'Housekeeping',
+    ]);
+  });
+
+  it('two positions same date: schedule entries kept separate per rowKey', async () => {
+    const date = new Date('2024-01-01');
+    gridRepo.findByHotelDate.mockResolvedValue([
+      {
+        ...makeRow({ positionName: 'Agent', deptName: 'Front Desk' }),
+        scheduleDate: date,
+        clockIn: '8:00 AM',
+        clockOut: '12:00 PM',
+        hours: 4,
+      },
+      {
+        ...makeRow({ positionName: 'Supervisor', deptName: 'Front Desk' }),
+        scheduleDate: date,
+        clockIn: '1:00 PM',
+        clockOut: '5:00 PM',
+        hours: 4,
+      },
+    ]);
+
+    const result = await svc.findScheduleGrid(GRID_PARAMS);
+
+    expect(result.schedule['E001|Agent']!['2024-01-01']).toMatchObject({
+      clockIn: '8:00 AM',
+      clockOut: '12:00 PM',
+    });
+    expect(result.schedule['E001|Supervisor']!['2024-01-01']).toMatchObject({
+      clockIn: '1:00 PM',
+      clockOut: '5:00 PM',
+    });
+  });
+});

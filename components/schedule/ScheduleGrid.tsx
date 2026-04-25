@@ -6,6 +6,7 @@ import { Lock } from 'lucide-react';
 import { TIME_OPTIONS } from '@/lib/schedule-utils';
 
 interface Employee {
+  rowKey: string;
   code: string;
   firstName: string;
   lastName: string;
@@ -34,9 +35,9 @@ interface ScheduleGridProps {
   data: ScheduleData;
   changes: Record<string, { clockIn?: string; clockOut?: string; hours?: number }>;
   selectedEmployees: Set<string>;
-  recordChange: (empCode: string, date: string, field: string, value: string) => void;
+  recordChange: (rowKey: string, date: string, field: string, value: string) => void;
   toggleEmployee: (empCode: string) => void;
-  getEffectiveValue: (empCode: string, date: string, field: string) => string | number;
+  getEffectiveValue: (rowKey: string, date: string, field: string) => string | number;
 }
 
 // ── Frozen column left offsets ──
@@ -137,9 +138,9 @@ interface ScheduleRowProps {
   schedule: Record<string, ScheduleRecord>;
   allDepts: string[];
   positionsByDept: Record<string, string[]>;
-  recordChange: (empCode: string, date: string, field: string, value: string) => void;
+  recordChange: (rowKey: string, date: string, field: string, value: string) => void;
   toggleEmployee: (empCode: string) => void;
-  getEffectiveValue: (empCode: string, date: string, field: string) => string | number;
+  getEffectiveValue: (rowKey: string, date: string, field: string) => string | number;
 }
 
 const ScheduleRow = memo(function ScheduleRow({
@@ -159,7 +160,7 @@ const ScheduleRow = memo(function ScheduleRow({
 
   // Compute total hours
   const totalHrs = dates.reduce((sum, date) => {
-    const hrs = getEffectiveValue(emp.code, date, 'hours');
+    const hrs = getEffectiveValue(emp.rowKey, date, 'hours');
     return sum + (typeof hrs === 'number' ? hrs : Number(hrs) || 0);
   }, 0);
 
@@ -236,13 +237,13 @@ const ScheduleRow = memo(function ScheduleRow({
         const locked = record?.locked ?? false;
         const disabled = isPast || locked;
 
-        const changeKey = `${emp.code}|${date}`;
+        const changeKey = `${emp.rowKey}|${date}`;
         const hasClockInChange = changes[changeKey]?.clockIn !== undefined;
         const hasClockOutChange = changes[changeKey]?.clockOut !== undefined;
 
-        const clockIn = String(getEffectiveValue(emp.code, date, 'clockIn') ?? '');
-        const clockOut = String(getEffectiveValue(emp.code, date, 'clockOut') ?? '');
-        const hrs = getEffectiveValue(emp.code, date, 'hours');
+        const clockIn = String(getEffectiveValue(emp.rowKey, date, 'clockIn') ?? '');
+        const clockOut = String(getEffectiveValue(emp.rowKey, date, 'clockOut') ?? '');
+        const hrs = getEffectiveValue(emp.rowKey, date, 'hours');
 
         const weekendBg = weekend ? 'bg-purple-50/50 dark:bg-purple-900/10' : '';
 
@@ -257,7 +258,7 @@ const ScheduleRow = memo(function ScheduleRow({
                 {locked && <Lock className="inline-block w-3 h-3 mr-0.5 text-gray-400" />}
                 <TimeCell
                   value={clockIn}
-                  onChange={(v) => recordChange(emp.code, date, 'clockIn', v)}
+                  onChange={(v) => recordChange(emp.rowKey, date, 'clockIn', v)}
                   disabled={disabled}
                   changed={hasClockInChange}
                 />
@@ -269,7 +270,7 @@ const ScheduleRow = memo(function ScheduleRow({
               >
                 <TimeCell
                   value={clockOut}
-                  onChange={(v) => recordChange(emp.code, date, 'clockOut', v)}
+                  onChange={(v) => recordChange(emp.rowKey, date, 'clockOut', v)}
                   disabled={disabled}
                   changed={hasClockOutChange}
                 />
@@ -410,13 +411,13 @@ function ScheduleGrid({
         <tbody>
           {data.employees.map((emp) => (
             <ScheduleRow
-              key={`${emp.code}|${emp.positionName}`}
+              key={emp.rowKey}
               emp={emp}
               dates={data.dates}
               today={today}
               selected={selectedEmployees.has(emp.code)}
               changes={changes}
-              schedule={data.schedule[emp.code] ?? {}}
+              schedule={data.schedule[emp.rowKey] ?? {}}
               allDepts={data.allDepts}
               positionsByDept={data.positionsByDept}
               recordChange={recordChange}

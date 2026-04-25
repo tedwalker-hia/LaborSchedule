@@ -4,6 +4,9 @@ export const SaveChangeSchema = z.object({
   employeeCode: z.string(),
   firstName: z.string().nullable().optional(),
   lastName: z.string().nullable().optional(),
+  /** Optional. When the employee is scheduled in multiple positions on this
+   * date, this disambiguates which row the change targets. */
+  positionName: z.string().nullable().optional(),
   date: z.string(),
   clockIn: z.string().nullable().optional(),
   clockOut: z.string().nullable().optional(),

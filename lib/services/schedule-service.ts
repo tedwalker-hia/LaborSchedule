@@ -21,6 +21,9 @@ export interface SaveChange {
   employeeCode: string;
   firstName?: string | null;
   lastName?: string | null;
+  /** When set, narrows the target row so multi-position employees keep
+   * separate clock-in/out per position. Empty/null = match any position. */
+  positionName?: string | null;
   date: string;
   clockIn?: string | null;
   clockOut?: string | null;
@@ -158,10 +161,12 @@ export class ScheduleService {
     const resolved = await Promise.all(
       changes.map(async (change) => {
         const scheduleDate = new Date(change.date + 'T00:00:00Z');
+        const positionName = change.positionName ? change.positionName : undefined;
         const existing = await this.repo.findFirst({
           usrSystemCompanyId,
           employeeCode: change.employeeCode,
           scheduleDate,
+          ...(positionName !== undefined ? { positionName } : {}),
         });
         return { change, scheduleDate, existing };
       }),
@@ -234,6 +239,7 @@ export class ScheduleService {
                 clockOut: isClearing ? null : clockOut,
                 hours: isClearing ? null : hours,
                 tenant,
+                positionName: change.positionName ?? null,
               },
             });
             await this.auditService.record(
@@ -575,49 +581,86 @@ export class ScheduleService {
       }),
     ]);
 
-    // Build employee map (unique employees by code, track multi-dept)
+    // First pass: compute multi-position flag per employee code.
+    const positionsByCode = new Map<string, Set<string>>();
+    const deptsByCode = new Map<string, Set<string>>();
+    for (const row of rows) {
+      const code = row.employeeCode;
+      let pSet = positionsByCode.get(code);
+      if (!pSet) {
+        pSet = new Set();
+        positionsByCode.set(code, pSet);
+      }
+      pSet.add(row.positionName || '');
+      let dSet = deptsByCode.get(code);
+      if (!dSet) {
+        dSet = new Set();
+        deptsByCode.set(code, dSet);
+      }
+      dSet.add(row.deptName || '');
+    }
+
+    // Build employee map keyed by `${code}|${positionName}` so each
+    // (employee, position) pair becomes a separate grid row.
     const employeeMap = new Map<
       string,
       {
+        rowKey: string;
         code: string;
         firstName: string | null;
         lastName: string | null;
         deptName: string;
         positionName: string;
         multiDept: boolean;
-        depts: Set<string>;
       }
     >();
 
+    const rowKeyFor = (code: string, positionName: string | null | undefined) =>
+      `${code}|${positionName || ''}`;
+
     for (const row of rows) {
-      const existing = employeeMap.get(row.employeeCode);
-      if (!existing) {
-        employeeMap.set(row.employeeCode, {
+      const positionName = row.positionName || '';
+      const rowKey = rowKeyFor(row.employeeCode, positionName);
+      if (!employeeMap.has(rowKey)) {
+        const positions = positionsByCode.get(row.employeeCode);
+        const depts = deptsByCode.get(row.employeeCode);
+        const multiDept =
+          (positions !== undefined && positions.size > 1) ||
+          (depts !== undefined && depts.size > 1);
+        employeeMap.set(rowKey, {
+          rowKey,
           code: row.employeeCode,
           firstName: row.firstName,
           lastName: row.lastName,
           deptName: row.deptName || '',
-          positionName: row.positionName || '',
-          multiDept: false,
-          depts: new Set([row.deptName || '']),
+          positionName,
+          multiDept,
         });
-      } else {
-        if (row.deptName && row.deptName !== existing.deptName) {
-          existing.multiDept = true;
-          existing.depts.add(row.deptName);
-        }
       }
     }
 
-    // Build schedule map (employeeCode -> dateKey -> ScheduleEntry)
-    const schedule: Record<string, Record<string, { clockIn: string; clockOut: string; hours: number | null; deptName: string; positionName: string; locked: boolean }>> = {};
+    // Build schedule map (rowKey -> dateKey -> ScheduleEntry).
+    const schedule: Record<
+      string,
+      Record<
+        string,
+        {
+          clockIn: string;
+          clockOut: string;
+          hours: number | null;
+          deptName: string;
+          positionName: string;
+          locked: boolean;
+        }
+      >
+    > = {};
     for (const row of rows) {
-      const code = row.employeeCode;
+      const rowKey = rowKeyFor(row.employeeCode, row.positionName);
       const dateKey = row.scheduleDate.toISOString().split('T')[0]!;
-      if (!schedule[code]) {
-        schedule[code] = {};
+      if (!schedule[rowKey]) {
+        schedule[rowKey] = {};
       }
-      schedule[code][dateKey] = {
+      schedule[rowKey][dateKey] = {
         clockIn: row.clockIn || '',
         clockOut: row.clockOut || '',
         hours: row.hours ? Number(row.hours) : null,
@@ -628,13 +671,13 @@ export class ScheduleService {
     }
 
     const employees = Array.from(employeeMap.values()).map((e) => ({
+      rowKey: e.rowKey,
       code: e.code,
       firstName: e.firstName || '',
       lastName: e.lastName || '',
       deptName: e.deptName,
       positionName: e.positionName,
       multiDept: e.multiDept,
-      depts: Array.from(e.depts),
     }));
 
     const depts = allDepts.map((d) => d.deptName).filter((d): d is string => d !== null && d !== '');
