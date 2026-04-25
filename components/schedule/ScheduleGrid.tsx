@@ -366,7 +366,15 @@ function ScheduleGrid({
 
               return (
                 <th key={date} colSpan={3} className={`${HEADER_BASE} text-center ${bgClass}`}>
-                  {format(parsed, 'MMM dd (EEE)')}
+                  <span className="inline-flex items-center gap-1">
+                    {format(parsed, 'MMM dd (EEE)')}
+                    {isPast && (
+                      <Lock
+                        className="w-3 h-3 text-gray-400"
+                        aria-label="Past date — read only"
+                      />
+                    )}
+                  </span>
                 </th>
               );
             })}
