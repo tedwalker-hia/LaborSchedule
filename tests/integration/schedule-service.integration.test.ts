@@ -177,7 +177,7 @@ describe('ScheduleService.save', () => {
 // ─── add ─────────────────────────────────────────────────────────────────────
 
 describe('ScheduleService.add', () => {
-  it('inserts a locked record and returns its id', async () => {
+  it('inserts an unlocked record and returns its id', async () => {
     const result = await svc.add(
       {
         usrSystemCompanyId: COMPANY,
@@ -195,7 +195,7 @@ describe('ScheduleService.add', () => {
 
     const row = await prisma.laborSchedule.findUnique({ where: { id: result.id } });
     expect(row).not.toBeNull();
-    expect(row!.locked).toBe(true);
+    expect(row!.locked).toBe(false);
     expect(row!.deptName).toBe('Front Office');
   });
 

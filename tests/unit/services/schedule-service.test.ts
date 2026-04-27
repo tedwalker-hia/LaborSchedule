@@ -235,7 +235,7 @@ describe('ScheduleService.add', () => {
 
   it('creates record inside transaction and returns id', async () => {
     repo.findFirst.mockResolvedValue(null);
-    db.laborSchedule.create.mockResolvedValue({ id: 99, locked: true });
+    db.laborSchedule.create.mockResolvedValue({ id: 99, locked: false });
 
     const result = await svc.add(
       { usrSystemCompanyId: 'CO1', employeeCode: 'E001', date: '2024-01-01' },
@@ -244,7 +244,7 @@ describe('ScheduleService.add', () => {
 
     expect(result).toEqual({ id: 99 });
     expect(db.laborSchedule.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ locked: true }) }),
+      expect.objectContaining({ data: expect.objectContaining({ locked: false }) }),
     );
     expect(auditSvc.record).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'schedule.add', oldJson: null }),
@@ -252,14 +252,14 @@ describe('ScheduleService.add', () => {
     );
   });
 
-  it('auto-locks manually added records', async () => {
+  it('manually added records are not locked', async () => {
     repo.findFirst.mockResolvedValue(null);
     db.laborSchedule.create.mockResolvedValue({ id: 1 });
 
     await svc.add({ usrSystemCompanyId: 'CO1', employeeCode: 'E001', date: '2024-01-01' }, CTX);
 
     expect(db.laborSchedule.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ locked: true }) }),
+      expect.objectContaining({ data: expect.objectContaining({ locked: false }) }),
     );
   });
 

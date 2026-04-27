@@ -261,7 +261,7 @@ export class ScheduleService {
     return { inserted, updated, skipped };
   }
 
-  /** Manually adds a single schedule record. Auto-locks the record. Throws DuplicateScheduleError if one already exists for this employee+date+position. */
+  /** Manually adds a single schedule record. Throws DuplicateScheduleError if one already exists for this employee+date+position. */
   async add(params: AddParams, ctx: AuditCtx): Promise<{ id: number }> {
     const scheduleDate = new Date(params.date + 'T00:00:00Z');
     const positionName = params.positionName || null;
@@ -296,7 +296,7 @@ export class ScheduleService {
           tenant: params.tenant,
           deptName: params.deptName || null,
           positionName,
-          locked: true,
+          locked: false,
         },
       });
       await this.auditService.record(
