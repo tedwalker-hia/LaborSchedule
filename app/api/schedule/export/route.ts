@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const hotel = searchParams.get('hotel') || '';
     const usrSystemCompanyId = searchParams.get('usrSystemCompanyId') || '';
+    const tenant = searchParams.get('tenant') || null;
     const dept = searchParams.get('dept') || '';
     const position = searchParams.get('position') || '';
     const startDateStr = searchParams.get('startDate') || '';
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
     }
 
     const perms = await getUserPermissions(user.userId);
-    if (!perms || !perms.hasScheduleAccess(hotel)) {
+    if (!perms || !perms.hasScheduleAccess({ hotel, tenant })) {
       return NextResponse.json({ error: 'forbidden', missingScope: { hotel } }, { status: 403 });
     }
 

@@ -21,7 +21,10 @@ export async function POST(request: NextRequest) {
   }
 
   const perms = await getUserPermissions(user.userId);
-  if (!perms || !perms.hasScheduleAccess(parsed.data.hotelName ?? null)) {
+  if (
+    !perms ||
+    !perms.hasScheduleAccess({ hotel: parsed.data.hotelName, tenant: parsed.data.tenant })
+  ) {
     return NextResponse.json(
       { error: 'forbidden', missingScope: { hotel: parsed.data.hotelName } },
       { status: 403 },

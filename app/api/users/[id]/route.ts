@@ -67,9 +67,9 @@ export async function PUT(req: NextRequest, context: RouteContext) {
     const { firstName, lastName, email, password, role, tenants, hotels, departments } =
       parsed.data;
 
-    if (!perms.canManageUser(role as Role)) {
+    if (!perms.canManageUser(role as Role, { tenants, hotels, departments })) {
       return NextResponse.json(
-        { error: 'Insufficient permissions to manage this role' },
+        { error: 'Insufficient permissions to assign this scope' },
         { status: 403 },
       );
     }
@@ -77,7 +77,17 @@ export async function PUT(req: NextRequest, context: RouteContext) {
     const svc = makeUserService();
     const existing = await svc.get(targetId);
 
-    if (!perms.canManageUser(existing.role as Role)) {
+    if (
+      !perms.canManageUser(existing.role as Role, {
+        tenants: existing.tenants.map((t) => t.tenant),
+        hotels: existing.hotels.map((h) => ({ tenant: h.tenant, hotelName: h.hotelName })),
+        departments: existing.departments.map((d) => ({
+          tenant: d.tenant,
+          hotelName: d.hotelName,
+          deptName: d.deptName,
+        })),
+      })
+    ) {
       return NextResponse.json(
         { error: 'Insufficient permissions to manage this user' },
         { status: 403 },
@@ -119,7 +129,17 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
     const svc = makeUserService();
     const target = await svc.get(targetId);
 
-    if (!perms.canManageUser(target.role as Role)) {
+    if (
+      !perms.canManageUser(target.role as Role, {
+        tenants: target.tenants.map((t) => t.tenant),
+        hotels: target.hotels.map((h) => ({ tenant: h.tenant, hotelName: h.hotelName })),
+        departments: target.departments.map((d) => ({
+          tenant: d.tenant,
+          hotelName: d.hotelName,
+          deptName: d.deptName,
+        })),
+      })
+    ) {
       return NextResponse.json(
         { error: 'Insufficient permissions to delete this user' },
         { status: 403 },

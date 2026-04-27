@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
 
   const hotel = formData.get('hotel')?.toString() ?? '';
   const usrSystemCompanyId = formData.get('usrSystemCompanyId')?.toString() ?? '';
+  const tenant = formData.get('tenant')?.toString() || null;
   const fileEntry = formData.get('file');
 
   if (!hotel || !usrSystemCompanyId || !(fileEntry instanceof File)) {
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
   }
 
   const perms = await getUserPermissions(user.userId);
-  if (!perms || !perms.hasScheduleAccess(hotel)) {
+  if (!perms || !perms.hasScheduleAccess({ hotel, tenant })) {
     return NextResponse.json({ error: 'forbidden', missingScope: { hotel } }, { status: 403 });
   }
 

@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
     if (perms.isSuperAdmin()) {
       scope = { type: 'all' };
     } else if (currentUserRole === 'CompanyAdmin') {
-      const ts = perms.getAccessibleTenants();
+      const ts = perms.getManagedTenants();
       scope = ts.unlimited ? { type: 'all' } : { type: 'byTenants', tenants: ts.allowed };
     } else if (currentUserRole === 'HotelAdmin') {
       const hs = perms.getAccessibleHotels();
@@ -71,9 +71,9 @@ export async function POST(req: NextRequest) {
     const { firstName, lastName, email, password, role, tenants, hotels, departments } =
       parsed.data;
 
-    if (!perms.canManageUser(role as Role)) {
+    if (!perms.canManageUser(role as Role, { tenants, hotels, departments })) {
       return NextResponse.json(
-        { error: 'Insufficient permissions to create this role' },
+        { error: 'Insufficient permissions to create this user' },
         { status: 403 },
       );
     }

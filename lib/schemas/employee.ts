@@ -29,4 +29,5 @@ export const RefreshBodySchema = z.object({
 export const RefreshPreviewBodySchema = z.object({
   usrSystemCompanyId: z.string(),
   hotelName: z.string().nullable().optional(),
+  tenant: z.string().nullable().optional(),
 });

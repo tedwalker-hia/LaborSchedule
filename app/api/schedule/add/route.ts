@@ -23,7 +23,11 @@ export async function POST(request: NextRequest) {
   const perms = await getUserPermissions(user.userId);
   if (
     !perms ||
-    !perms.hasScheduleAccess(parsed.data.hotel ?? null, parsed.data.deptName ?? undefined)
+    !perms.hasScheduleAccess({
+      hotel: parsed.data.hotel,
+      tenant: parsed.data.tenant,
+      dept: parsed.data.deptName ?? undefined,
+    })
   ) {
     return NextResponse.json(
       {

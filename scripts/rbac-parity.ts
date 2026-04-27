@@ -55,8 +55,14 @@ class PermissionChecker {
     return this.user.role === 'SuperAdmin';
   }
 
-  hasScheduleAccess(hotel: string | null | undefined, dept?: string): boolean {
+  hasScheduleAccess(target: {
+    hotel?: string | null;
+    tenant?: string | null;
+    dept?: string;
+  }): boolean {
     if (this.isSuperAdmin()) return true;
+
+    const { hotel, tenant, dept } = target;
 
     if (!hotel) {
       return (
@@ -67,9 +73,11 @@ class PermissionChecker {
     }
 
     if (this.user.role === 'CompanyAdmin') {
-      const tenants = this.user.tenants.map((t) => t.tenant);
-      const hotels = this.user.hotels.map((h) => h.hotelName);
-      return hotels.includes(hotel) || tenants.length > 0;
+      if (this.user.hotels.some((h) => h.hotelName === hotel)) return true;
+      if (tenant) {
+        return this.user.tenants.some((t) => t.tenant === tenant);
+      }
+      return false;
     }
 
     if (this.user.role === 'HotelAdmin') {
@@ -174,7 +182,13 @@ function buildNextjsScope(user: UserRecord, universe: ScopeTuple[]): Set<string>
 
   const result = new Set<string>();
   for (const tuple of universe) {
-    if (checker.hasScheduleAccess(tuple.hotelName, tuple.deptName || undefined)) {
+    if (
+      checker.hasScheduleAccess({
+        hotel: tuple.hotelName,
+        tenant: tuple.tenant,
+        dept: tuple.deptName || undefined,
+      })
+    ) {
       result.add(tupleKey(tuple));
     }
   }

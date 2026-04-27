@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   }
 
   const perms = await getUserPermissions(user.userId);
-  if (!perms || !perms.hasScheduleAccess(null)) {
+  if (!perms || !perms.hasScheduleAccess({})) {
     return NextResponse.json({ error: 'forbidden', missingScope: {} }, { status: 403 });
   }
 

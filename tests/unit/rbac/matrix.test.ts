@@ -62,7 +62,7 @@ describe('PermissionChecker.hasScheduleAccess', () => {
     ] as [string, string | null, string | undefined, boolean][])(
       '%s',
       (_label, hotel, dept, expected) => {
-        expect(sa.hasScheduleAccess(hotel, dept)).toBe(expected);
+        expect(sa.hasScheduleAccess({ hotel, dept })).toBe(expected);
       },
     );
   });
@@ -73,20 +73,29 @@ describe('PermissionChecker.hasScheduleAccess', () => {
       hotels: [{ tenant: TENANT_1, hotelName: HOTEL_A }],
     });
 
-    it.each([
-      ['null hotel', null, undefined, true],
-      ['assigned hotel', HOTEL_A, undefined, true],
-      ['any hotel (has tenant)', HOTEL_B, undefined, true],
-    ] as [string, string | null, string | undefined, boolean][])(
-      '%s',
-      (_label, hotel, dept, expected) => {
-        expect(ca.hasScheduleAccess(hotel, dept)).toBe(expected);
-      },
-    );
+    it('null hotel → allow (any active scope)', () => {
+      expect(ca.hasScheduleAccess({ hotel: null })).toBe(true);
+    });
+
+    it('directly assigned hotel → allow even without tenant', () => {
+      expect(ca.hasScheduleAccess({ hotel: HOTEL_A })).toBe(true);
+    });
+
+    it('non-assigned hotel under in-scope tenant → allow', () => {
+      expect(ca.hasScheduleAccess({ hotel: HOTEL_B, tenant: TENANT_1 })).toBe(true);
+    });
+
+    it('non-assigned hotel under out-of-scope tenant → deny', () => {
+      expect(ca.hasScheduleAccess({ hotel: HOTEL_B, tenant: 'tenant-other' })).toBe(false);
+    });
+
+    it('non-assigned hotel without tenant arg → deny (no tenant gate)', () => {
+      expect(ca.hasScheduleAccess({ hotel: HOTEL_B })).toBe(false);
+    });
   });
 
   it('CompanyAdmin with no assignments + null hotel → deny', () => {
-    expect(make('CompanyAdmin').hasScheduleAccess(null)).toBe(false);
+    expect(make('CompanyAdmin').hasScheduleAccess({ hotel: null })).toBe(false);
   });
 
   describe('HotelAdmin with Hotel Alpha assignment', () => {
@@ -101,13 +110,13 @@ describe('PermissionChecker.hasScheduleAccess', () => {
     ] as [string, string | null, string | undefined, boolean][])(
       '%s',
       (_label, hotel, dept, expected) => {
-        expect(ha.hasScheduleAccess(hotel, dept)).toBe(expected);
+        expect(ha.hasScheduleAccess({ hotel, dept })).toBe(expected);
       },
     );
   });
 
   it('HotelAdmin with no assignments + null hotel → deny', () => {
-    expect(make('HotelAdmin').hasScheduleAccess(null)).toBe(false);
+    expect(make('HotelAdmin').hasScheduleAccess({ hotel: null })).toBe(false);
   });
 
   describe('DeptAdmin with Hotel Alpha / Front Desk assignment', () => {
@@ -124,13 +133,13 @@ describe('PermissionChecker.hasScheduleAccess', () => {
     ] as [string, string | null, string | undefined, boolean][])(
       '%s',
       (_label, hotel, dept, expected) => {
-        expect(da.hasScheduleAccess(hotel, dept)).toBe(expected);
+        expect(da.hasScheduleAccess({ hotel, dept })).toBe(expected);
       },
     );
   });
 
   it('DeptAdmin with no assignments + null hotel → deny', () => {
-    expect(make('DeptAdmin').hasScheduleAccess(null)).toBe(false);
+    expect(make('DeptAdmin').hasScheduleAccess({ hotel: null })).toBe(false);
   });
 });
 
@@ -193,19 +202,127 @@ describe('Scope shape — unlimited flag', () => {
 
 // ─── canManageUser matrix ─────────────────────────────────────────────────────
 
-describe('PermissionChecker.canManageUser', () => {
+describe('PermissionChecker.canManageUser — role gate', () => {
+  // SuperAdmin short-circuits the scope check, so empty scope is fine.
   it.each([
     ['SuperAdmin can manage any role', 'SuperAdmin', 'DeptAdmin', true],
     ['SuperAdmin can manage SuperAdmin', 'SuperAdmin', 'SuperAdmin', true],
-    ['CompanyAdmin can manage HotelAdmin', 'CompanyAdmin', 'HotelAdmin', true],
-    ['CompanyAdmin can manage DeptAdmin', 'CompanyAdmin', 'DeptAdmin', true],
     ['CompanyAdmin cannot manage CompanyAdmin', 'CompanyAdmin', 'CompanyAdmin', false],
-    ['HotelAdmin can manage HotelAdmin', 'HotelAdmin', 'HotelAdmin', true],
-    ['HotelAdmin can manage DeptAdmin', 'HotelAdmin', 'DeptAdmin', true],
     ['HotelAdmin cannot manage CompanyAdmin', 'HotelAdmin', 'CompanyAdmin', false],
-    ['DeptAdmin can manage DeptAdmin', 'DeptAdmin', 'DeptAdmin', true],
     ['DeptAdmin cannot manage HotelAdmin', 'DeptAdmin', 'HotelAdmin', false],
   ] as [string, Role, Role, boolean][])('%s', (_label, actorRole, targetRole, expected) => {
-    expect(make(actorRole).canManageUser(targetRole)).toBe(expected);
+    const actor = make(actorRole, {
+      tenants: [TENANT_1],
+      hotels: [{ tenant: TENANT_1, hotelName: HOTEL_A }],
+      departments: [{ tenant: TENANT_1, hotelName: HOTEL_A, deptName: DEPT_X }],
+    });
+    expect(actor.canManageUser(targetRole, {})).toBe(expected);
+  });
+});
+
+describe('PermissionChecker.canManageUser — scope gate', () => {
+  it('CompanyAdmin allows target hotel within managed tenant', () => {
+    const ca = make('CompanyAdmin', { tenants: [TENANT_1] });
+    expect(
+      ca.canManageUser('HotelAdmin', {
+        hotels: [{ tenant: TENANT_1, hotelName: HOTEL_A }],
+      }),
+    ).toBe(true);
+  });
+
+  it('CompanyAdmin rejects target hotel in out-of-scope tenant', () => {
+    const ca = make('CompanyAdmin', { tenants: [TENANT_1] });
+    expect(
+      ca.canManageUser('HotelAdmin', {
+        hotels: [{ tenant: 'tenant-other', hotelName: HOTEL_A }],
+      }),
+    ).toBe(false);
+  });
+
+  it('CompanyAdmin rejects target tenant assignment outside own tenants', () => {
+    const ca = make('CompanyAdmin', { tenants: [TENANT_1] });
+    expect(ca.canManageUser('HotelAdmin', { tenants: ['tenant-other'] })).toBe(false);
+  });
+
+  it('HotelAdmin allows target hotel within own hotels', () => {
+    const ha = make('HotelAdmin', { hotels: [{ tenant: TENANT_1, hotelName: HOTEL_A }] });
+    expect(
+      ha.canManageUser('HotelAdmin', {
+        hotels: [{ tenant: TENANT_1, hotelName: HOTEL_A }],
+      }),
+    ).toBe(true);
+  });
+
+  it('HotelAdmin rejects target hotel outside own hotels', () => {
+    const ha = make('HotelAdmin', { hotels: [{ tenant: TENANT_1, hotelName: HOTEL_A }] });
+    expect(
+      ha.canManageUser('HotelAdmin', {
+        hotels: [{ tenant: TENANT_1, hotelName: HOTEL_B }],
+      }),
+    ).toBe(false);
+  });
+
+  it('HotelAdmin cannot grant tenant-level scope', () => {
+    const ha = make('HotelAdmin', { hotels: [{ tenant: TENANT_1, hotelName: HOTEL_A }] });
+    expect(ha.canManageUser('HotelAdmin', { tenants: [TENANT_1] })).toBe(false);
+  });
+
+  it('HotelAdmin allows DeptAdmin target whose dept hotel is in own scope', () => {
+    const ha = make('HotelAdmin', { hotels: [{ tenant: TENANT_1, hotelName: HOTEL_A }] });
+    expect(
+      ha.canManageUser('DeptAdmin', {
+        departments: [{ tenant: TENANT_1, hotelName: HOTEL_A, deptName: DEPT_X }],
+      }),
+    ).toBe(true);
+  });
+
+  it('HotelAdmin rejects DeptAdmin target whose dept hotel is out of scope', () => {
+    const ha = make('HotelAdmin', { hotels: [{ tenant: TENANT_1, hotelName: HOTEL_A }] });
+    expect(
+      ha.canManageUser('DeptAdmin', {
+        departments: [{ tenant: TENANT_1, hotelName: HOTEL_B, deptName: DEPT_X }],
+      }),
+    ).toBe(false);
+  });
+
+  it('DeptAdmin allows DeptAdmin target with subset of own depts', () => {
+    const da = make('DeptAdmin', {
+      departments: [{ tenant: TENANT_1, hotelName: HOTEL_A, deptName: DEPT_X }],
+    });
+    expect(
+      da.canManageUser('DeptAdmin', {
+        departments: [{ tenant: TENANT_1, hotelName: HOTEL_A, deptName: DEPT_X }],
+      }),
+    ).toBe(true);
+  });
+
+  it('DeptAdmin rejects DeptAdmin target outside own depts', () => {
+    const da = make('DeptAdmin', {
+      departments: [{ tenant: TENANT_1, hotelName: HOTEL_A, deptName: DEPT_X }],
+    });
+    expect(
+      da.canManageUser('DeptAdmin', {
+        departments: [{ tenant: TENANT_1, hotelName: HOTEL_A, deptName: DEPT_Y }],
+      }),
+    ).toBe(false);
+  });
+});
+
+describe('PermissionChecker.getManagedTenants', () => {
+  it('SuperAdmin → unlimited', () => {
+    expect(make('SuperAdmin').getManagedTenants()).toEqual({ unlimited: true });
+  });
+
+  it('CompanyAdmin returns only direct tenant assignments (no union)', () => {
+    const ca = make('CompanyAdmin', {
+      tenants: [TENANT_1],
+      hotels: [{ tenant: 'tenant-2', hotelName: HOTEL_A }],
+      departments: [{ tenant: 'tenant-3', hotelName: HOTEL_A, deptName: DEPT_X }],
+    });
+    const result = ca.getManagedTenants();
+    expect(result.unlimited).toBe(false);
+    if (!result.unlimited) {
+      expect(result.allowed).toEqual([TENANT_1]);
+    }
   });
 });
