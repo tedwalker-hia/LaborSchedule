@@ -8,6 +8,11 @@ const schema = z.object({
     .string({ message: 'DATABASE_URL is required' })
     .min(1, { message: 'DATABASE_URL is required' }),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  AUDIT_ENABLED: z
+    .string()
+    .optional()
+    .transform((v) => v !== 'false')
+    .pipe(z.boolean()),
 });
 
 const parsed = schema.safeParse(process.env);
