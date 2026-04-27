@@ -20,8 +20,8 @@ export async function GET(request: NextRequest) {
     const hotel = searchParams.get('hotel') || '';
     const usrSystemCompanyId = searchParams.get('usrSystemCompanyId') || '';
     const tenant = searchParams.get('tenant') || null;
-    const dept = searchParams.get('dept') || '';
-    const position = searchParams.get('position') || '';
+    const dept = searchParams.get('dept') || undefined;
+    const position = searchParams.get('position') || undefined;
     const startDateStr = searchParams.get('startDate') || '';
     const endDateStr = searchParams.get('endDate') || '';
 
@@ -82,10 +82,10 @@ export async function GET(request: NextRequest) {
       Record<string, { clockIn: string; clockOut: string; hours: number }>
     > = {};
     for (const row of scheduleRows) {
-      const code = row.employeeCode;
+      const rowKey = `${row.employeeCode}|${row.positionName ?? ''}`;
       const dateKey = row.scheduleDate.toISOString().split('T')[0]!;
-      if (!schedule[code]) schedule[code] = {};
-      schedule[code][dateKey] = {
+      if (!schedule[rowKey]) schedule[rowKey] = {};
+      schedule[rowKey][dateKey] = {
         clockIn: row.clockIn || '',
         clockOut: row.clockOut || '',
         hours: row.hours ? Number(row.hours) : 0,

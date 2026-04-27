@@ -6,7 +6,7 @@ interface Employee {
   code: string;
   firstName: string;
   lastName: string;
-  deptName: string;
+  deptName?: string;
 }
 
 interface EmployeeCheckboxListProps {

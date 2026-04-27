@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useScheduleState } from '@/components/schedule/useScheduleState';
+import { useScheduleExport } from '@/lib/hooks/useScheduleExport';
 import FilterBar from '@/components/schedule/FilterBar';
 import ActionBar from '@/components/schedule/ActionBar';
 import ScheduleGrid from '@/components/schedule/ScheduleGrid';
@@ -26,6 +27,7 @@ export default function SchedulePage() {
     discardChanges,
     saveChanges,
     selectedEmployees,
+    selectedEmployeeCodes,
     toggleEmployee,
     selectAllEmployees,
     deselectAllEmployees,
@@ -37,6 +39,8 @@ export default function SchedulePage() {
     loadHotels,
     loadSchedule,
   } = useScheduleState();
+
+  const { exportSchedule, loading: exporting } = useScheduleExport();
 
   // Modal state
   const [generateModalOpen, setGenerateModalOpen] = useState(false);
@@ -51,6 +55,26 @@ export default function SchedulePage() {
   useEffect(() => {
     loadTenants();
   }, [loadTenants]);
+
+  // Warn before tab close / navigation when there are unsaved edits.
+  useEffect(() => {
+    if (!hasChanges) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // Modern browsers ignore the message but require returnValue to be set.
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [hasChanges]);
+
+  const handleDiscard = useCallback(() => {
+    const count = Object.keys(changes).length;
+    if (count === 0) return;
+    if (window.confirm(`Discard ${count} unsaved change(s)?`)) {
+      discardChanges();
+    }
+  }, [changes, discardChanges]);
 
   // Status message
   const statusMessage = loading
@@ -82,13 +106,26 @@ export default function SchedulePage() {
         hasChanges={hasChanges}
         selectedCount={selectedEmployees.size}
         loading={loading}
+        exporting={exporting}
         onSave={saveChanges}
-        onDiscard={discardChanges}
+        onDiscard={handleDiscard}
         onSelectAll={selectAllEmployees}
         onDeselectAll={deselectAllEmployees}
         onOpenGenerate={() => setGenerateModalOpen(true)}
         onOpenClear={() => setClearModalOpen(true)}
         onOpenImport={() => setImportModalOpen(true)}
+        onExport={() => {
+          if (!filters.hotelInfo) return;
+          exportSchedule({
+            hotel: filters.hotel,
+            usrSystemCompanyId: filters.hotelInfo.usrSystemCompanyId,
+            tenant: filters.tenant,
+            startDate: filters.startDate,
+            endDate: filters.endDate,
+            dept: filters.department,
+            position: filters.position,
+          });
+        }}
         onOpenAdd={() => setAddModalOpen(true)}
         onOpenDelete={() => setDeleteModalOpen(true)}
         onOpenRefresh={() => setRefreshModalOpen(true)}
@@ -126,7 +163,7 @@ export default function SchedulePage() {
           open={generateModalOpen}
           onClose={() => setGenerateModalOpen(false)}
           filters={filters}
-          selectedEmployees={selectedEmployees}
+          selectedEmployees={selectedEmployeeCodes}
           onComplete={loadSchedule}
         />
       )}
@@ -135,7 +172,7 @@ export default function SchedulePage() {
           open={clearModalOpen}
           onClose={() => setClearModalOpen(false)}
           filters={filters}
-          selectedEmployees={selectedEmployees}
+          selectedEmployees={selectedEmployeeCodes}
           onComplete={loadSchedule}
         />
       )}
@@ -160,7 +197,7 @@ export default function SchedulePage() {
           open={deleteModalOpen}
           onClose={() => setDeleteModalOpen(false)}
           filters={filters}
-          selectedEmployees={selectedEmployees}
+          selectedEmployees={selectedEmployeeCodes}
           onComplete={loadSchedule}
         />
       )}

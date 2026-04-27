@@ -6,6 +6,7 @@ interface ActionBarProps {
   hasChanges: boolean;
   selectedCount: number;
   loading: boolean;
+  exporting: boolean;
   onSave: () => void;
   onDiscard: () => void;
   onSelectAll: () => void;
@@ -13,6 +14,7 @@ interface ActionBarProps {
   onOpenGenerate: () => void;
   onOpenClear: () => void;
   onOpenImport: () => void;
+  onExport: () => void;
   onOpenAdd: () => void;
   onOpenDelete: () => void;
   onOpenRefresh: () => void;
@@ -29,11 +31,13 @@ export default function ActionBar({
   hasChanges,
   selectedCount,
   loading,
+  exporting,
   onSave,
   onDiscard,
   onOpenGenerate,
   onOpenClear,
   onOpenImport,
+  onExport,
   onOpenAdd,
   onOpenDelete,
   onOpenRefresh,
@@ -96,6 +100,15 @@ export default function ActionBar({
             </button>
           )}
 
+          <button
+            onClick={onExport}
+            disabled={exporting}
+            className={`${iconBtn} border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed`}
+            title="Export to Excel"
+            aria-label="Export to Excel"
+          >
+            <Download className="w-4 h-4" />
+          </button>
           <button
             onClick={onOpenImport}
             className={`${iconBtn} border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-800`}

@@ -122,9 +122,21 @@ export async function exportScheduleToExcel(params: {
   timeOptions.forEach((label, i) => {
     tvSheet.getCell(i + 1, 1).value = label; // A1:A96
   });
-  tvSheet.state = 'hidden';
+  tvSheet.state = 'veryHidden';
 
   const ws = workbook.addWorksheet('Labor Schedule');
+
+  workbook.views = [
+    {
+      activeTab: 1,
+      firstSheet: 1,
+      visibility: 'visible',
+      x: 0,
+      y: 0,
+      width: 10000,
+      height: 20000,
+    },
+  ];
 
   const FIXED_COLS = 5;
   const TOTAL_COL = 5;
@@ -250,7 +262,7 @@ export async function exportScheduleToExcel(params: {
 
       hrsRefs.push(`${hrsLetter}${row}`);
 
-      const entry = schedule[emp.code]?.[dateKey(date)];
+      const entry = schedule[`${emp.code}|${emp.positionName}`]?.[dateKey(date)];
 
       if (past) {
         inCell.value = entry?.clockIn ?? '';

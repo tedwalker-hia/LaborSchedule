@@ -25,7 +25,12 @@ export async function GET(request: NextRequest) {
     }
 
     const svc = makeScheduleService();
-    const employees = await svc.listRosterEmployees({ usrSystemCompanyId, hotelName: hotel });
+    const roster = await svc.listRosterEmployees({ usrSystemCompanyId, hotelName: hotel });
+    const employees = roster.map((e) => ({
+      code: e.employeeCode,
+      firstName: e.firstName ?? '',
+      lastName: e.lastName ?? '',
+    }));
     return NextResponse.json(employees);
   } catch (error) {
     return mapErrorResponse(error, 'Employees API error');

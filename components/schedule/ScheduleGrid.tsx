@@ -36,7 +36,7 @@ interface ScheduleGridProps {
   changes: Record<string, { clockIn?: string; clockOut?: string; hours?: number }>;
   selectedEmployees: Set<string>;
   recordChange: (rowKey: string, date: string, field: string, value: string) => void;
-  toggleEmployee: (empCode: string) => void;
+  toggleEmployee: (rowKey: string) => void;
   selectAllEmployees: () => void;
   deselectAllEmployees: () => void;
   getEffectiveValue: (rowKey: string, date: string, field: string) => string | number;
@@ -141,7 +141,7 @@ interface ScheduleRowProps {
   allDepts: string[];
   positionsByDept: Record<string, string[]>;
   recordChange: (rowKey: string, date: string, field: string, value: string) => void;
-  toggleEmployee: (empCode: string) => void;
+  toggleEmployee: (rowKey: string) => void;
   getEffectiveValue: (rowKey: string, date: string, field: string) => string | number;
 }
 
@@ -178,7 +178,7 @@ const ScheduleRow = memo(function ScheduleRow({
         <input
           type="checkbox"
           checked={selected}
-          onChange={() => toggleEmployee(emp.code)}
+          onChange={() => toggleEmployee(emp.rowKey)}
           className="rounded border-gray-300 dark:border-slate-500"
         />
       </td>
@@ -257,7 +257,6 @@ const ScheduleRow = memo(function ScheduleRow({
                 className={`flex-1 px-1 py-1 border-r border-gray-200 dark:border-slate-600 ${hasClockInChange ? 'bg-yellow-50 dark:bg-yellow-900/20' : ''}`}
                 style={{ minWidth: 80 }}
               >
-                {locked && <Lock className="inline-block w-3 h-3 mr-0.5 text-gray-400" />}
                 <TimeCell
                   value={clockIn}
                   onChange={(v) => recordChange(emp.rowKey, date, 'clockIn', v)}
@@ -308,11 +307,14 @@ function ScheduleGrid({
 
   const frozenStickyHeader = `sticky z-30 ${HEADER_BASE}`;
 
-  const totalEmployees = data.employees.length;
-  const selectedCount = data.employees.reduce(
-    (n, e) => n + (selectedEmployees.has(e.code) ? 1 : 0),
-    0,
-  );
+  // Selection is empCode-keyed; multi-position employees count once.
+  const uniqueEmpCodes = useMemo(() => {
+    const codes = new Set<string>();
+    for (const e of data.employees) codes.add(e.code);
+    return codes;
+  }, [data.employees]);
+  const totalEmployees = uniqueEmpCodes.size;
+  const selectedCount = selectedEmployees.size;
   const allSelected = totalEmployees > 0 && selectedCount === totalEmployees;
   const someSelected = selectedCount > 0 && selectedCount < totalEmployees;
 

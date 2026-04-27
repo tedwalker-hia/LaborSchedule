@@ -6,8 +6,8 @@ export interface Employee {
   code: string;
   firstName: string;
   lastName: string;
-  deptName: string;
-  positionName: string;
+  deptName?: string;
+  positionName?: string;
 }
 
 interface EmployeeFilters {

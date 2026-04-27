@@ -1,9 +1,16 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { format, addDays, subDays } from 'date-fns';
+import toast from 'react-hot-toast';
 import { calcHours } from '@/lib/domain/rules';
 import { useSelectedHotel } from '@/lib/selected-hotel-context';
+
+const AUTO_LOAD_DEBOUNCE_MS = 400;
+
+function errorMessage(err: unknown, fallback: string): string {
+  return err instanceof Error && err.message ? err.message : fallback;
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -60,15 +67,19 @@ export interface HotelOption {
 export function useScheduleState() {
   const { setHotelName } = useSelectedHotel();
 
-  // Filter state
-  const [filters, setFilters] = useState<FilterState>({
-    tenant: '',
-    hotel: '',
-    hotelInfo: null,
-    department: '',
-    position: '',
-    startDate: '',
-    endDate: '',
+  // Filter state — default dates are populated so bulk-action APIs (which
+  // require a date range) always receive valid ISO dates instead of empty strings.
+  const [filters, setFilters] = useState<FilterState>(() => {
+    const today = new Date();
+    return {
+      tenant: '',
+      hotel: '',
+      hotelInfo: null,
+      department: '',
+      position: '',
+      startDate: format(subDays(today, 7), 'yyyy-MM-dd'),
+      endDate: format(addDays(today, 7), 'yyyy-MM-dd'),
+    };
   });
 
   // Data state
@@ -96,7 +107,7 @@ export function useScheduleState() {
       const json = await res.json();
       setTenants(json.tenants ?? json);
     } catch (err) {
-      console.error('loadTenants error:', err);
+      toast.error(errorMessage(err, 'Failed to load tenants'));
     }
   }, []);
 
@@ -107,7 +118,7 @@ export function useScheduleState() {
       const json = await res.json();
       setHotels(json.hotels ?? json);
     } catch (err) {
-      console.error('loadHotels error:', err);
+      toast.error(errorMessage(err, 'Failed to load hotels'));
     }
   }, []);
 
@@ -126,7 +137,7 @@ export function useScheduleState() {
       const json = await res.json();
       setDepartments(json.departments ?? json);
     } catch (err) {
-      console.error('loadDepartments error:', err);
+      toast.error(errorMessage(err, 'Failed to load departments'));
     }
   }, [filters.hotel, filters.hotelInfo]);
 
@@ -146,11 +157,19 @@ export function useScheduleState() {
       const json = await res.json();
       setPositions(json.positions ?? json);
     } catch (err) {
-      console.error('loadPositions error:', err);
+      toast.error(errorMessage(err, 'Failed to load positions'));
     }
   }, [filters.hotel, filters.hotelInfo, filters.department]);
 
+  // AbortController ref guards loadSchedule against stale-response races when
+  // filters change mid-flight. Each new call aborts the prior in-flight fetch.
+  const scheduleAbortRef = useRef<AbortController | null>(null);
+
   const loadSchedule = useCallback(async () => {
+    scheduleAbortRef.current?.abort();
+    const controller = new AbortController();
+    scheduleAbortRef.current = controller;
+
     setLoading(true);
     try {
       const today = new Date();
@@ -169,19 +188,24 @@ export function useScheduleState() {
       params.set('startDate', startDate);
       params.set('endDate', endDate);
 
-      const res = await fetch(`/api/schedule?${params.toString()}`);
+      const res = await fetch(`/api/schedule?${params.toString()}`, { signal: controller.signal });
       if (!res.ok) {
         const body = await res.text();
         throw new Error(`Failed to load schedule (${res.status}): ${body}`);
       }
       const json: ScheduleData = await res.json();
+      if (controller.signal.aborted) return;
       setData(json);
       setChanges({});
       setSelectedEmployees(new Set());
     } catch (err) {
-      console.error('loadSchedule error:', err);
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      toast.error(errorMessage(err, 'Failed to load schedule'));
     } finally {
-      setLoading(false);
+      if (scheduleAbortRef.current === controller) {
+        scheduleAbortRef.current = null;
+        setLoading(false);
+      }
     }
   }, [filters]);
 
@@ -266,25 +290,34 @@ export function useScheduleState() {
           changes: changeList,
         }),
       });
-      if (!res.ok) throw new Error('Failed to save changes');
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? 'Failed to save changes');
+      }
       // Reload schedule after successful save
       await loadSchedule();
     } catch (err) {
-      console.error('saveChanges error:', err);
+      toast.error(errorMessage(err, 'Failed to save changes'));
     } finally {
       setLoading(false);
     }
   }, [changes, filters, loadSchedule]);
 
   // ── Selection ──────────────────────────────────────────────────────────────
+  // Selection is keyed by employee code (NOT rowKey). Bulk actions
+  // (clear/generate/delete) accept `employeeCodes[]` and operate position-agnostically
+  // — so a multi-position employee should appear as one logical selection that
+  // covers all their rows. Toggling any of their rows flips the whole employee.
 
-  const toggleEmployee = useCallback((empCode: string) => {
+  const toggleEmployee = useCallback((rowKey: string) => {
+    const code = rowKey.split('|')[0];
+    if (!code) return;
     setSelectedEmployees((prev) => {
       const next = new Set(prev);
-      if (next.has(empCode)) {
-        next.delete(empCode);
+      if (next.has(code)) {
+        next.delete(code);
       } else {
-        next.add(empCode);
+        next.add(code);
       }
       return next;
     });
@@ -299,6 +332,9 @@ export function useScheduleState() {
     setSelectedEmployees(new Set());
   }, []);
 
+  // Public alias retained for callers that previously expected a Set<empCode>.
+  const selectedEmployeeCodes = selectedEmployees;
+
   // ── Auto-load on filter change ────────────────────────────────────────────
 
   useEffect(() => {
@@ -309,8 +345,13 @@ export function useScheduleState() {
     if (filters.hotelInfo) loadPositions();
   }, [filters.hotelInfo, filters.department, loadPositions]);
 
+  // Debounce auto-load so date keystrokes don't fire a fetch per character.
   useEffect(() => {
-    if (filters.hotelInfo) loadSchedule();
+    if (!filters.hotelInfo) return;
+    const handle = setTimeout(() => {
+      void loadSchedule();
+    }, AUTO_LOAD_DEBOUNCE_MS);
+    return () => clearTimeout(handle);
   }, [
     filters.hotelInfo,
     filters.department,
@@ -319,6 +360,13 @@ export function useScheduleState() {
     filters.endDate,
     loadSchedule,
   ]);
+
+  // Abort any in-flight schedule fetch on unmount.
+  useEffect(() => {
+    return () => {
+      scheduleAbortRef.current?.abort();
+    };
+  }, []);
 
   // Publish current hotel selection to the global header.
   useEffect(() => {
@@ -350,6 +398,7 @@ export function useScheduleState() {
 
     // Selection
     selectedEmployees,
+    selectedEmployeeCodes,
     toggleEmployee,
     selectAllEmployees,
     deselectAllEmployees,

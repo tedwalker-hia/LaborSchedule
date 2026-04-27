@@ -61,13 +61,18 @@ export default function GenerateModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
+  // Pre-fill from caller's selection only. Don't auto-select all employees —
+  // a confirm-and-Generate would otherwise apply to the whole hotel without
+  // the user explicitly opting in.
   useEffect(() => {
-    if (step === 2 && employees.length > 0 && selectedCodes.size === 0) {
-      if (selectedEmployees && selectedEmployees.size > 0) {
-        resetCodes([...selectedEmployees]);
-      } else {
-        resetCodes(employees.map((e) => e.code));
-      }
+    if (
+      step === 2 &&
+      employees.length > 0 &&
+      selectedCodes.size === 0 &&
+      selectedEmployees &&
+      selectedEmployees.size > 0
+    ) {
+      resetCodes([...selectedEmployees]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employees]);
@@ -180,7 +185,10 @@ export default function GenerateModal({
           <Button
             variant="primary"
             onClick={next}
-            disabled={step === 1 && (!startDate || !endDate)}
+            disabled={
+              (step === 1 && (!startDate || !endDate)) ||
+              (step === 2 && selectedCodes.size === 0)
+            }
           >
             Next
           </Button>

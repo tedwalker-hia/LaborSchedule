@@ -63,8 +63,8 @@ export default function AddRecordModal({
     setSelectedEmployee(code);
     const emp = employees.find((e) => e.code === code);
     if (emp) {
-      setDepartment(emp.deptName);
-      setPosition(emp.positionName);
+      if (emp.deptName) setDepartment(emp.deptName);
+      if (emp.positionName) setPosition(emp.positionName);
     }
   };
 
@@ -82,6 +82,7 @@ export default function AddRecordModal({
     if (!filters.hotelInfo) return;
     setLoading(true);
     try {
+      const emp = employees.find((e) => e.code === selectedEmployee);
       const res = await fetch('/api/schedule/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -91,12 +92,13 @@ export default function AddRecordModal({
           branchId: filters.hotelInfo.branchId,
           tenant: filters.tenant,
           employeeCode: selectedEmployee,
-          department,
-          position,
+          firstName: emp?.firstName ?? null,
+          lastName: emp?.lastName ?? null,
+          deptName: department || null,
+          positionName: position || null,
           date,
           clockIn,
           clockOut,
-          hours: hours ? parseFloat(hours) : undefined,
         }),
       });
       if (!res.ok) {

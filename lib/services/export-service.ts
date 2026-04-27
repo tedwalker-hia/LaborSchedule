@@ -37,6 +37,7 @@ export interface ExportData {
   }>;
   schedule: Array<{
     employeeCode: string;
+    positionName: string | null;
     scheduleDate: Date;
     clockIn: string | null;
     clockOut: string | null;
@@ -64,7 +65,8 @@ export class ExportService {
       positionName: params.position,
     });
 
-    // Build unique employee list
+    // Build unique (employee, position) list — one row per (code, position)
+    // to mirror the grid's multi-position handling.
     const employeeMap = new Map<
       string,
       {
@@ -77,8 +79,9 @@ export class ExportService {
     >();
 
     for (const row of rows) {
-      if (!employeeMap.has(row.employeeCode)) {
-        employeeMap.set(row.employeeCode, {
+      const key = `${row.employeeCode}|${row.positionName ?? ''}`;
+      if (!employeeMap.has(key)) {
+        employeeMap.set(key, {
           code: row.employeeCode,
           firstName: row.firstName,
           lastName: row.lastName,
@@ -91,11 +94,14 @@ export class ExportService {
     const employees = Array.from(employeeMap.values()).sort((a, b) => {
       const lastCmp = (a.lastName ?? '').localeCompare(b.lastName ?? '');
       if (lastCmp !== 0) return lastCmp;
-      return (a.firstName ?? '').localeCompare(b.firstName ?? '');
+      const firstCmp = (a.firstName ?? '').localeCompare(b.firstName ?? '');
+      if (firstCmp !== 0) return firstCmp;
+      return (a.positionName ?? '').localeCompare(b.positionName ?? '');
     });
 
     const schedule = rows.map((row) => ({
       employeeCode: row.employeeCode,
+      positionName: row.positionName,
       scheduleDate: row.scheduleDate,
       clockIn: row.clockIn,
       clockOut: row.clockOut,
