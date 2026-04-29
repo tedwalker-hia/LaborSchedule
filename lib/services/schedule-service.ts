@@ -194,33 +194,30 @@ export class ScheduleService {
           const hours = clockIn && clockOut ? calcHours(clockIn, clockOut) : null;
 
           if (existing) {
-            await tx.laborSchedule.delete({ where: { id: existing.id } });
-            const created = await tx.laborSchedule.create({
+            // Update in place rather than delete+create so the row's `id`
+            // stays stable across edits — keeps the audit_trail walkable by
+            // id without having to chase the (employee, date, position)
+            // tuple through deleted rows.
+            const updatedRow = await tx.laborSchedule.update({
+              where: { id: existing.id },
               data: {
-                usrSystemCompanyId,
                 branchId: branchId ?? existing.branchId,
                 hotelName: hotel ?? existing.hotelName,
-                employeeCode: change.employeeCode,
                 firstName: change.firstName ?? existing.firstName,
                 lastName: change.lastName ?? existing.lastName,
-                scheduleDate,
                 clockIn: isClearing ? null : clockIn,
                 clockOut: isClearing ? null : clockOut,
                 hours: isClearing ? null : hours,
                 tenant: tenant ?? existing.tenant,
-                deptName: existing.deptName,
-                multiDept: existing.multiDept,
-                positionName: existing.positionName,
-                locked: existing.locked,
               },
             });
             await this.auditService.record(
               {
-                scheduleId: created.id,
+                scheduleId: existing.id,
                 changedByUserId: ctx.userId,
                 action: 'schedule.save',
                 oldJson: JSON.stringify(existing),
-                newJson: JSON.stringify(created),
+                newJson: JSON.stringify(updatedRow),
               },
               tx,
             );

@@ -21,6 +21,7 @@ const makeDb = () => {
     laborSchedule: {
       delete: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
       findMany: vi.fn().mockResolvedValue([]),
       updateMany: vi.fn().mockResolvedValue({ count: 0 }),
       deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
@@ -93,8 +94,11 @@ describe('ScheduleService.save', () => {
       positionName: null,
       locked: false,
     });
-    db.laborSchedule.delete.mockResolvedValue({});
-    db.laborSchedule.create.mockResolvedValue({ id: 43, clockIn: '8:00 AM', clockOut: '5:00 PM' });
+    db.laborSchedule.update.mockResolvedValue({
+      id: 42,
+      clockIn: '8:00 AM',
+      clockOut: '5:00 PM',
+    });
 
     const result = await svc.save(
       {
@@ -107,9 +111,12 @@ describe('ScheduleService.save', () => {
     );
 
     expect(result).toEqual({ inserted: 0, updated: 1, skipped: 0 });
-    expect(db.laborSchedule.delete).toHaveBeenCalledWith({ where: { id: 42 } });
+    expect(db.laborSchedule.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 42 } }),
+    );
+    expect(db.laborSchedule.delete).not.toHaveBeenCalled();
     expect(auditSvc.record).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'schedule.save', scheduleId: 43 }),
+      expect.objectContaining({ action: 'schedule.save', scheduleId: 42 }),
       db,
     );
   });
@@ -183,7 +190,7 @@ describe('ScheduleService.save', () => {
     expect(result.skipped).toBe(1);
   });
 
-  it('preserves existing deptName and locked on update', async () => {
+  it('preserves existing deptName and locked on update (update-in-place)', async () => {
     repo.findFirst.mockResolvedValue({
       id: 5,
       clockIn: '7:00 AM',
@@ -198,8 +205,7 @@ describe('ScheduleService.save', () => {
       positionName: 'Housekeeper',
       locked: true,
     });
-    db.laborSchedule.delete.mockResolvedValue({});
-    db.laborSchedule.create.mockResolvedValue({ id: 6 });
+    db.laborSchedule.update.mockResolvedValue({ id: 5 });
 
     await svc.save(
       {
@@ -211,10 +217,16 @@ describe('ScheduleService.save', () => {
       CTX,
     );
 
-    const createCall = db.laborSchedule.create.mock.calls[0]![0];
-    expect(createCall.data.deptName).toBe('Housekeeping');
-    expect(createCall.data.positionName).toBe('Housekeeper');
-    expect(createCall.data.locked).toBe(true);
+    // Update keeps deptName / positionName / locked unchanged because those
+    // fields are simply not in the update payload.
+    expect(db.laborSchedule.update).toHaveBeenCalledOnce();
+    const updateCall = db.laborSchedule.update.mock.calls[0]![0];
+    expect(updateCall.where).toEqual({ id: 5 });
+    expect(updateCall.data.deptName).toBeUndefined();
+    expect(updateCall.data.positionName).toBeUndefined();
+    expect(updateCall.data.locked).toBeUndefined();
+    expect(updateCall.data.clockIn).toBe('8:00 AM');
+    expect(updateCall.data.clockOut).toBe('4:00 PM');
   });
 });
 
