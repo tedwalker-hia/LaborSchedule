@@ -31,6 +31,7 @@ export async function middleware(request: NextRequest) {
     const res = unauthenticated(request);
     res.cookies.delete(COOKIE_NAME);
     res.cookies.delete('auth-exp');
+    res.cookies.delete(CSRF_COOKIE);
     return res;
   }
 
