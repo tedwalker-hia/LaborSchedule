@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import bcrypt from 'bcryptjs';
+import { hash, verify } from '@/lib/auth/hash';
 import { ChangePasswordBodySchema } from '@/lib/schemas/user';
 import { sign, COOKIE_NAME, ABSOLUTE_TTL_S } from '@/lib/session';
 import logger from '@/lib/logger';
@@ -47,13 +47,13 @@ export async function POST(request: NextRequest) {
       if (!currentPassword || !user.passwordHash) {
         return NextResponse.json({ error: 'Current password is required' }, { status: 400 });
       }
-      const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+      const valid = await verify(currentPassword, user.passwordHash);
       if (!valid) {
         return NextResponse.json({ error: 'Current password is incorrect.' }, { status: 401 });
       }
     }
 
-    const newHash = await bcrypt.hash(newPassword, 10);
+    const newHash = await hash(newPassword);
 
     await prisma.user.update({
       where: { userId: parseInt(userId) },

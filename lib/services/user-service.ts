@@ -1,6 +1,6 @@
-import bcrypt from 'bcryptjs';
-import { PrismaClient, Prisma } from '@prisma/client';
+import type { PrismaClient, Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
+import { hash } from '../auth/hash';
 import {
   UsersRepo,
   makeUsersRepo,
@@ -130,7 +130,7 @@ export class UserService {
     const existing = await this.repo.findFirst({ email: input.email.toLowerCase() });
     if (existing) throw new EmailConflictError();
 
-    const passwordHash = await bcrypt.hash(input.password, 10);
+    const passwordHash = await hash(input.password);
 
     return this.db.$transaction(async (tx) => {
       const txRepo = makeUsersRepo(tx);
@@ -178,7 +178,7 @@ export class UserService {
     };
 
     if (input.password) {
-      fields.passwordHash = await bcrypt.hash(input.password, 10);
+      fields.passwordHash = await hash(input.password);
       fields.mustChangePassword = true;
     }
 
@@ -225,7 +225,7 @@ export class UserService {
     const existing = await this.repo.findById(userId);
     if (!existing) throw new UserNotFoundError(userId);
 
-    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const passwordHash = await hash(newPassword);
     const resetAt = new Date().toISOString();
     await this.db.$transaction(async (tx) => {
       await tx.user.update({
