@@ -190,6 +190,43 @@ describe('ScheduleService.save', () => {
     expect(result.skipped).toBe(1);
   });
 
+  it('pins hotelName in findFirst so cross-hotel rows are not overwritten', async () => {
+    repo.findFirst.mockResolvedValue(null);
+    db.laborSchedule.create.mockResolvedValue({ id: 1 });
+
+    await svc.save(
+      {
+        usrSystemCompanyId: 'CO1',
+        hotel: 'Hotel A',
+        changes: [{ employeeCode: 'E001', date: '2024-01-01', clockIn: '8:00 AM' }],
+      },
+      CTX,
+    );
+
+    expect(repo.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ hotelName: 'Hotel A' }),
+    );
+  });
+
+  it('threads scope into findFirst extraWhere', async () => {
+    repo.findFirst.mockResolvedValue(null);
+    db.laborSchedule.create.mockResolvedValue({ id: 1 });
+
+    await svc.save(
+      {
+        usrSystemCompanyId: 'CO1',
+        hotel: 'Hotel A',
+        scope: [{ hotelName: 'Hotel A', deptName: 'Front Desk' }],
+        changes: [{ employeeCode: 'E001', date: '2024-01-01', clockIn: '8:00 AM' }],
+      },
+      CTX,
+    );
+
+    const call = repo.findFirst.mock.calls[0]![0];
+    expect(call.extraWhere).toBeDefined();
+    expect(JSON.stringify(call.extraWhere)).toContain('Front Desk');
+  });
+
   it('preserves existing deptName and locked on update (update-in-place)', async () => {
     repo.findFirst.mockResolvedValue({
       id: 5,
