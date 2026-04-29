@@ -138,13 +138,17 @@ describe('middleware CSRF enforcement', () => {
 });
 
 describe('middleware path allowlist — exact match', () => {
-  it.skip('GET /change-password → passes (exact public path)', async () => {
+  it('GET /change-password without auth → redirects to /login', async () => {
+    // /change-password is NOT a public path; unauth requests should be
+    // funnelled to /login like any other authenticated page.
     const req = await makeRequest('/change-password', 'GET');
     const res = await middleware(req);
-    // Public path: no auth required, not redirected to login
-    expect(res.status).not.toBe(401);
-    const location = res.headers.get('location');
-    expect(location).not.toContain('/login');
+    const isAuthRequired =
+      res.status === 401 ||
+      (res.status >= 300 &&
+        res.status < 400 &&
+        (res.headers.get('location') ?? '').includes('/login'));
+    expect(isAuthRequired).toBe(true);
   });
 
   it('GET /change-password-bypass → requires auth (startsWith bypass blocked)', async () => {
@@ -170,12 +174,12 @@ describe('middleware path allowlist — exact match', () => {
     expect(isAuthRequired).toBe(true);
   });
 
-  it.skip('GET /login → passes (exact public path)', async () => {
+  it('GET /login → passes (exact public path)', async () => {
     const req = await makeRequest('/login', 'GET');
     const res = await middleware(req);
     expect(res.status).not.toBe(401);
     const location = res.headers.get('location');
-    expect(location).not.toContain('/login');
+    expect(location ?? '').not.toContain('/login?from=');
   });
 
   it('GET /login-bypass → requires auth', async () => {
