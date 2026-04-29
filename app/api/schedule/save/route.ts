@@ -22,21 +22,34 @@ export async function POST(request: NextRequest) {
 
   try {
     const perms = await getUserPermissions(user.userId);
-    if (
-      !perms ||
-      !perms.hasScheduleAccess({
+    if (!perms) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    }
+    // hasHotelAccess does the strict tenant↔hotel lookup that hasScheduleAccess
+    // skips for CompanyAdmin. Required so a CompanyAdmin can't claim a hotel
+    // outside their tenant grant.
+    if (parsed.data.hotel) {
+      const ok = await perms.hasHotelAccess({
         hotel: parsed.data.hotel,
-        tenant: parsed.data.tenant,
-      })
-    ) {
-      return NextResponse.json(
-        { error: 'forbidden', missingScope: { hotel: parsed.data.hotel } },
-        { status: 403 },
-      );
+        usrSystemCompanyId: parsed.data.usrSystemCompanyId,
+      });
+      if (!ok) {
+        return NextResponse.json(
+          { error: 'forbidden', missingScope: { hotel: parsed.data.hotel } },
+          { status: 403 },
+        );
+      }
+    }
+    const scope = await perms.deriveScheduleScope(parsed.data.usrSystemCompanyId);
+    if (scope !== null && scope.length === 0) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 
     const svc = makeScheduleService();
-    const result = await svc.save(parsed.data, { userId: user.userId, source: 'api' });
+    const result = await svc.save(
+      { ...parsed.data, scope },
+      { userId: user.userId, source: 'api' },
+    );
     return NextResponse.json(result);
   } catch (error) {
     logger.error({ err: error }, 'Schedule save error');

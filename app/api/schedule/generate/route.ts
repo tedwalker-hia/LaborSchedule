@@ -21,19 +21,32 @@ export async function POST(request: NextRequest) {
   }
 
   const perms = await getUserPermissions(user.userId);
-  if (
-    !perms ||
-    !perms.hasScheduleAccess({ hotel: parsed.data.hotel, tenant: parsed.data.tenant })
-  ) {
-    return NextResponse.json(
-      { error: 'forbidden', missingScope: { hotel: parsed.data.hotel } },
-      { status: 403 },
-    );
+  if (!perms) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  }
+  if (parsed.data.hotel) {
+    const ok = await perms.hasHotelAccess({
+      hotel: parsed.data.hotel,
+      usrSystemCompanyId: parsed.data.usrSystemCompanyId,
+    });
+    if (!ok) {
+      return NextResponse.json(
+        { error: 'forbidden', missingScope: { hotel: parsed.data.hotel } },
+        { status: 403 },
+      );
+    }
+  }
+  const scope = await perms.deriveScheduleScope(parsed.data.usrSystemCompanyId);
+  if (scope !== null && scope.length === 0) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
   try {
     const svc = makeGenerationService();
-    const result = await svc.generate(parsed.data, { userId: user.userId, source: 'api' });
+    const result = await svc.generate(
+      { ...parsed.data, scope },
+      { userId: user.userId, source: 'api' },
+    );
     return NextResponse.json(result);
   } catch (error) {
     return mapErrorResponse(error, 'Schedule generate error');

@@ -87,8 +87,13 @@ export class SchedulesRepo {
     employeeCode: string;
     scheduleDate: Date;
     positionName?: string | null;
+    hotelName?: string | null;
+    extraWhere?: Prisma.LaborScheduleWhereInput;
   }) {
-    return this.db.laborSchedule.findFirst({ where });
+    const { extraWhere, ...rest } = where;
+    return this.db.laborSchedule.findFirst({
+      where: { ...rest, ...(extraWhere ?? {}) },
+    });
   }
 
   async create(data: Prisma.LaborScheduleCreateInput) {

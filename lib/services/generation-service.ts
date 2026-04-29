@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 import { generateClockTimes } from '@/lib/schedule-utils';
 import type { EmployeeHistory } from '@/lib/domain/types';
@@ -6,6 +6,18 @@ import { PayrollRepo, makePayrollRepo } from '../repositories/payroll-repo';
 import { toMondayBased } from '@/lib/domain/payroll';
 import { calcHours, shouldScheduleDow } from '@/lib/domain/rules';
 import { AuditService, AuditCtx, makeAuditService } from './audit-service';
+import type { ScheduleScope } from '../auth/rbac';
+
+function scopeToWhere(scope?: ScheduleScope): Prisma.LaborScheduleWhereInput {
+  if (scope === null || scope === undefined) return {};
+  if (scope.length === 0) return { id: { lt: 0 } };
+  return {
+    OR: scope.map((s) => ({
+      hotelName: s.hotelName,
+      ...(s.deptName ? { deptName: s.deptName } : {}),
+    })),
+  };
+}
 
 export interface GenerateParams {
   usrSystemCompanyId: string;
@@ -16,6 +28,7 @@ export interface GenerateParams {
   startDate: string;
   endDate: string;
   overwriteLocked?: boolean;
+  scope?: ScheduleScope;
 }
 
 export interface GenerateResult {
@@ -114,7 +127,14 @@ export class GenerationService {
       tenant,
       employeeCodes,
       overwriteLocked = false,
+      scope,
     } = params;
+    const scopeWhere = scopeToWhere(scope);
+    // hotelPin and scopeWhere together prevent generate from deleting or
+    // relocating rows in another hotel/dept under this company.
+    const hotelPin: Prisma.LaborScheduleWhereInput = hotel
+      ? { hotelName: hotel }
+      : {};
 
     if (employeeCodes.length === 0) {
       return { inserted: 0, skipped: 0, skippedEmployees: [] };
@@ -156,6 +176,8 @@ export class GenerationService {
         employeeCode: { in: employeeCodes },
         scheduleDate: { gte: start, lte: end },
         locked: true,
+        ...hotelPin,
+        ...scopeWhere,
       },
       select: { employeeCode: true, scheduleDate: true },
     });
@@ -189,12 +211,21 @@ export class GenerationService {
               continue;
             }
 
-            const lockedGuard = overwriteLocked ? {} : { OR: [{ locked: false }, { locked: null }] };
+            const lockedGuard: Prisma.LaborScheduleWhereInput = overwriteLocked
+              ? {}
+              : { OR: [{ locked: false }, { locked: null }] };
+
+            // Use AND so the lockedGuard's OR doesn't collide with scopeWhere's OR.
+            const deleteWhere: Prisma.LaborScheduleWhereInput = {
+              AND: [
+                { usrSystemCompanyId, employeeCode: empCode, scheduleDate, ...hotelPin },
+                scopeWhere,
+                lockedGuard,
+              ],
+            };
 
             if (isMultiPosition) {
-              await tx.laborSchedule.deleteMany({
-                where: { usrSystemCompanyId, employeeCode: empCode, scheduleDate, ...lockedGuard },
-              });
+              await tx.laborSchedule.deleteMany({ where: deleteWhere });
 
               const records = this.splitByPosition({
                 usrSystemCompanyId,
@@ -224,9 +255,7 @@ export class GenerationService {
               const times = generateClockTimes(avgHours);
               if (!times) continue;
 
-              await tx.laborSchedule.deleteMany({
-                where: { usrSystemCompanyId, employeeCode: empCode, scheduleDate, ...lockedGuard },
-              });
+              await tx.laborSchedule.deleteMany({ where: deleteWhere });
 
               await tx.laborSchedule.create({
                 data: {

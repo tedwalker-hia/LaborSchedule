@@ -21,7 +21,11 @@ import { parseWorkbook } from '@/lib/excel/parser';
 import { makeImportService } from '@/lib/services/import-service';
 
 const mockUser = { userId: 1, email: 'test@test.com', role: 'manager' };
-const mockPerms = { hasScheduleAccess: () => true };
+const mockPerms = {
+  hasScheduleAccess: () => true,
+  hasHotelAccess: vi.fn().mockResolvedValue(true),
+  deriveScheduleScope: vi.fn().mockResolvedValue(null),
+};
 
 function makeFormData(overrides: Record<string, string> = {}) {
   const fd = new FormData();

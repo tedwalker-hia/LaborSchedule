@@ -1,8 +1,22 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { SchedulesRepo, makeSchedulesRepo } from '../repositories/schedules-repo';
 import { AuditService, makeAuditService } from './audit-service';
 import { prisma } from '../prisma';
 import { calcHours } from '../domain/rules';
+import type { ScheduleScope } from '../auth/rbac';
+
+/** Mirrors `schedule-service.scopeToWhere`. Kept private to each service so a
+ * reader hitting one file sees the full scope-to-where contract locally. */
+function scopeToWhere(scope?: ScheduleScope): Prisma.LaborScheduleWhereInput {
+  if (scope === null || scope === undefined) return {};
+  if (scope.length === 0) return { id: { lt: 0 } };
+  return {
+    OR: scope.map((s) => ({
+      hotelName: s.hotelName,
+      ...(s.deptName ? { deptName: s.deptName } : {}),
+    })),
+  };
+}
 
 export interface ParsedRow {
   employeeCode: string;
@@ -22,6 +36,7 @@ export interface CommitOptions {
   tenant?: string | null;
   overwriteLocked?: boolean;
   userId?: number | null;
+  scope?: ScheduleScope;
 }
 
 export interface SkippedRow {
@@ -51,6 +66,7 @@ export class ImportService {
       tenant,
       overwriteLocked = false,
       userId = null,
+      scope,
     } = opts;
 
     if (parsed.length === 0) {
@@ -71,11 +87,17 @@ export class ImportService {
         // can't change the row set between the read and the deleteMany. Costs
         // longer locks but closes the race that previously let stale ids
         // miss rows added or shifted between read and delete.
+        //
+        // Pin to the payload's hotel and the user's scope so a row sharing
+        // (employee, date) under another hotel/dept is never selected for
+        // delete or relocation.
         const existing = await tx.laborSchedule.findMany({
           where: {
             usrSystemCompanyId,
             employeeCode: { in: empCodes },
             scheduleDate: { in: dates },
+            ...(hotel ? { hotelName: hotel } : {}),
+            ...scopeToWhere(scope),
           },
           select: {
             id: true,

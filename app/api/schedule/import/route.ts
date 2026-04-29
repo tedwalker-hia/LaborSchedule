@@ -43,8 +43,16 @@ export async function POST(request: NextRequest) {
   }
 
   const perms = await getUserPermissions(user.userId);
-  if (!perms || !perms.hasScheduleAccess({ hotel, tenant })) {
+  if (!perms) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  }
+  const hotelOk = await perms.hasHotelAccess({ hotel, usrSystemCompanyId });
+  if (!hotelOk) {
     return NextResponse.json({ error: 'forbidden', missingScope: { hotel } }, { status: 403 });
+  }
+  const scope = await perms.deriveScheduleScope(usrSystemCompanyId);
+  if (scope !== null && scope.length === 0) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
   let records: Awaited<ReturnType<typeof parseWorkbook>>['records'];
@@ -81,8 +89,10 @@ export async function POST(request: NextRequest) {
     const result = await svc.commit(parsedRows, {
       usrSystemCompanyId,
       hotel,
+      tenant,
       overwriteLocked,
       userId: user.userId,
+      scope,
     });
 
     return NextResponse.json({

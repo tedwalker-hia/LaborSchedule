@@ -54,6 +54,7 @@ export interface SaveParams {
   branchId?: number | null;
   tenant?: string | null;
   changes: SaveChange[];
+  scope?: ScheduleScope;
 }
 
 export interface SaveResult {
@@ -176,10 +177,15 @@ export class ScheduleService {
    * prisma.$transaction so partial failures roll back, including audit rows.
    */
   async save(params: SaveParams, ctx: AuditCtx): Promise<SaveResult> {
-    const { usrSystemCompanyId, hotel, branchId, tenant, changes } = params;
+    const { usrSystemCompanyId, hotel, branchId, tenant, changes, scope } = params;
     let inserted = 0;
     let updated = 0;
     let skipped = 0;
+
+    // Pin existing-row lookup to the payload's hotel so a row carrying the
+    // same (employee, date, position) under a different hotel is never
+    // overwritten or relocated. Empty/null hotel falls back to scope-only.
+    const scopeWhere = scopeToWhere(scope);
 
     // Pre-load existing records outside the transaction (consistent with prior behaviour).
     const resolved = await Promise.all(
@@ -191,6 +197,8 @@ export class ScheduleService {
           employeeCode: change.employeeCode,
           scheduleDate,
           ...(positionName !== undefined ? { positionName } : {}),
+          ...(hotel ? { hotelName: hotel } : {}),
+          extraWhere: scopeWhere,
         });
         return { change, scheduleDate, existing };
       }),
