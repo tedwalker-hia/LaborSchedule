@@ -12,13 +12,18 @@ const makePayrollRepo = () => ({
   findPayrollWindows: vi.fn(),
 });
 
-const makeDb = () => ({
-  laborSchedule: {
+const makeDb = () => {
+  const laborSchedule = {
     findMany: vi.fn(),
     deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
     create: vi.fn().mockResolvedValue({ id: 1 }),
-  },
-});
+  };
+  const db = {
+    laborSchedule,
+    $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(db)),
+  };
+  return db;
+};
 
 type PayrollRepo = ReturnType<typeof makePayrollRepo>;
 type Db = ReturnType<typeof makeDb>;
@@ -212,14 +217,15 @@ describe('GenerationService.generate', () => {
     expect(result.inserted).toBe(0);
   });
 
-  it.skip('skips locked date when overwriteLocked is false', async () => {
+  it('skips locked date when overwriteLocked is false', async () => {
     repo.findPositionWindows.mockResolvedValue(new Map([['E001', []]]));
     repo.findPayrollWindows.mockResolvedValue(new Map([['E001', historyForDow(MON, 8)]]));
-    // locked record on the target date
+    // locked record on the target date — UTC construction matches the
+    // service's lockedSet key (which ISO-stringifies UTC dates).
     db.laborSchedule.findMany.mockImplementation(({ where }: any) => {
       if (where?.locked) {
         return Promise.resolve([
-          { employeeCode: 'E001', scheduleDate: new Date(MONDAY + 'T00:00:00') },
+          { employeeCode: 'E001', scheduleDate: new Date(MONDAY + 'T00:00:00Z') },
         ]);
       }
       return Promise.resolve([]);

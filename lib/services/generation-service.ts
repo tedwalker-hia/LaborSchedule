@@ -167,101 +167,109 @@ export class GenerationService {
     let skipped = 0;
     const skippedEmployees: string[] = [];
 
-    for (const empCode of employeeCodes) {
-      const positionHistories = positionWindowsMap.get(empCode) ?? [];
-      const isMultiPosition = positionHistories.length > 1;
+    await this.db.$transaction(
+      async (tx) => {
+        for (const empCode of employeeCodes) {
+          const positionHistories = positionWindowsMap.get(empCode) ?? [];
+          const isMultiPosition = positionHistories.length > 1;
 
-      if (positionHistories.length === 0 && !simpleWindowsMap.get(empCode)) {
-        skippedEmployees.push(empCode);
-        continue;
-      }
-
-      const { firstName = '', lastName = '' } = nameMap.get(empCode) ?? {};
-
-      for (const date of dates) {
-        const scheduleDate = new Date(date);
-        const isLocked = lockedSet.has(`${empCode}::${scheduleDate.toISOString()}`);
-
-        if (isLocked && !overwriteLocked) {
-          skipped++;
-          continue;
-        }
-
-        const lockedGuard = overwriteLocked ? {} : { OR: [{ locked: false }, { locked: null }] };
-
-        if (isMultiPosition) {
-          await this.db.laborSchedule.deleteMany({
-            where: { usrSystemCompanyId, employeeCode: empCode, scheduleDate, ...lockedGuard },
-          });
-
-          const records = this.splitByPosition({
-            usrSystemCompanyId,
-            branchId,
-            hotel,
-            tenant,
-            employeeCode: empCode,
-            firstName,
-            lastName,
-            scheduleDate,
-            positionHistories,
-          });
-
-          for (const data of records) {
-            await this.db.laborSchedule.create({ data });
-            inserted++;
+          if (positionHistories.length === 0 && !simpleWindowsMap.get(empCode)) {
+            skippedEmployees.push(empCode);
+            continue;
           }
-        } else {
-          const history = positionHistories[0] ?? simpleWindowsMap.get(empCode)!;
-          const dow = toMondayBased(date.getUTCDay());
 
-          if (!history.workDays.includes(dow)) continue;
+          const { firstName = '', lastName = '' } = nameMap.get(empCode) ?? {};
 
-          const avgHours = history.avgByDow[dow] ?? 0;
-          if (!shouldScheduleDow(avgHours)) continue;
+          for (const date of dates) {
+            const scheduleDate = new Date(date);
+            const isLocked = lockedSet.has(`${empCode}::${scheduleDate.toISOString()}`);
 
-          const times = generateClockTimes(avgHours);
-          if (!times) continue;
+            if (isLocked && !overwriteLocked) {
+              skipped++;
+              continue;
+            }
 
-          await this.db.laborSchedule.deleteMany({
-            where: { usrSystemCompanyId, employeeCode: empCode, scheduleDate, ...lockedGuard },
-          });
+            const lockedGuard = overwriteLocked ? {} : { OR: [{ locked: false }, { locked: null }] };
 
-          await this.db.laborSchedule.create({
-            data: {
-              usrSystemCompanyId,
-              branchId,
-              hotelName: hotel,
-              employeeCode: empCode,
-              firstName,
-              lastName,
-              scheduleDate,
-              clockIn: times.clockIn,
-              clockOut: times.clockOut,
-              hours: calcHours(times.clockIn, times.clockOut),
-              tenant,
-              deptName: history.deptName || null,
-              multiDept: false,
-              positionName: history.positionName || null,
-            },
-          });
-          inserted++;
+            if (isMultiPosition) {
+              await tx.laborSchedule.deleteMany({
+                where: { usrSystemCompanyId, employeeCode: empCode, scheduleDate, ...lockedGuard },
+              });
+
+              const records = this.splitByPosition({
+                usrSystemCompanyId,
+                branchId,
+                hotel,
+                tenant,
+                employeeCode: empCode,
+                firstName,
+                lastName,
+                scheduleDate,
+                positionHistories,
+              });
+
+              for (const data of records) {
+                await tx.laborSchedule.create({ data });
+                inserted++;
+              }
+            } else {
+              const history = positionHistories[0] ?? simpleWindowsMap.get(empCode)!;
+              const dow = toMondayBased(date.getUTCDay());
+
+              if (!history.workDays.includes(dow)) continue;
+
+              const avgHours = history.avgByDow[dow] ?? 0;
+              if (!shouldScheduleDow(avgHours)) continue;
+
+              const times = generateClockTimes(avgHours);
+              if (!times) continue;
+
+              await tx.laborSchedule.deleteMany({
+                where: { usrSystemCompanyId, employeeCode: empCode, scheduleDate, ...lockedGuard },
+              });
+
+              await tx.laborSchedule.create({
+                data: {
+                  usrSystemCompanyId,
+                  branchId,
+                  hotelName: hotel,
+                  employeeCode: empCode,
+                  firstName,
+                  lastName,
+                  scheduleDate,
+                  clockIn: times.clockIn,
+                  clockOut: times.clockOut,
+                  hours: calcHours(times.clockIn, times.clockOut),
+                  tenant,
+                  deptName: history.deptName || null,
+                  multiDept: false,
+                  positionName: history.positionName || null,
+                },
+              });
+              inserted++;
+            }
+          }
         }
-      }
-    }
 
-    await this.auditService.record({
-      scheduleId: null,
-      changedByUserId: ctx.userId,
-      action: 'schedule.generate',
-      oldJson: null,
-      newJson: JSON.stringify({
-        employeeCount: employeeCodes.length,
-        startDate: params.startDate,
-        endDate: params.endDate,
-        inserted,
-        skipped,
-      }),
-    });
+        await this.auditService.record(
+          {
+            scheduleId: null,
+            changedByUserId: ctx.userId,
+            action: 'schedule.generate',
+            oldJson: null,
+            newJson: JSON.stringify({
+              employeeCount: employeeCodes.length,
+              startDate: params.startDate,
+              endDate: params.endDate,
+              inserted,
+              skipped,
+            }),
+          },
+          tx,
+        );
+      },
+      { timeout: 30_000, maxWait: 10_000 },
+    );
 
     return { inserted, skipped, skippedEmployees };
   }

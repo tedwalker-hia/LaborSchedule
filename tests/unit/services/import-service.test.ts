@@ -14,15 +14,20 @@ const makeRepo = () => ({
 
 function makeDb(existingRows: object[] = []) {
   const created = { id: 99, clockIn: '8:00 AM', clockOut: '4:00 PM' };
+  // Existing rows are read inside the transaction now, so the tx mock owns
+  // findMany too.
+  const txFindMany = vi.fn().mockResolvedValue(existingRows);
   return {
     laborSchedule: {
-      findMany: vi.fn().mockResolvedValue(existingRows),
+      findMany: txFindMany,
     },
     $transaction: vi.fn(async (fn: (tx: object) => Promise<void>) => {
       const tx = {
         laborSchedule: {
           delete: vi.fn().mockResolvedValue({}),
+          deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
           create: vi.fn().mockResolvedValue(created),
+          findMany: txFindMany,
         },
       };
       await fn(tx);
