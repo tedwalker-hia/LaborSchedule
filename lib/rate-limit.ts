@@ -31,6 +31,17 @@ function buildLimiters() {
     };
   }
 
+  if (process.env.NODE_ENV === 'production') {
+    // Per-process memory limiter: defeated by multi-instance deployments (each
+    // worker counts independently). Acceptable for single-instance internal
+    // hosting, but flag it loudly so a deploy behind a load balancer doesn't
+    // silently weaken brute-force protection.
+    console.warn(
+      '[rate-limit] REDIS_URL is not set; using per-process memory limiter. ' +
+        'Multi-instance deployments will not share state — set REDIS_URL.',
+    );
+  }
+
   return {
     byIp: new RateLimiterMemory({ points: IP_POINTS, duration: DURATION_S }),
     byEmail: new RateLimiterMemory({ points: EMAIL_POINTS, duration: DURATION_S }),
