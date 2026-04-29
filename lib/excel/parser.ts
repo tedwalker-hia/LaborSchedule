@@ -77,24 +77,27 @@ function parseDateHeader(header: string, referenceDate: Date): Date | null {
   const month = MONTH_MAP[monthStr];
   if (month === undefined || isNaN(day)) return null;
 
-  const refYear = referenceDate.getFullYear();
-  let date = new Date(refYear, month, day);
+  // Use UTC construction so the import-service consumer (which suffixes
+  // 'T00:00:00Z' to the formatted ISO date) does not drift across timezones
+  // for year-edge dates.
+  const refYear = referenceDate.getUTCFullYear();
+  let date = new Date(Date.UTC(refYear, month, day));
 
   const diffMs = date.getTime() - referenceDate.getTime();
   const sixMonthsMs = 6 * 30 * 24 * 60 * 60 * 1000;
   if (diffMs > sixMonthsMs) {
-    date = new Date(refYear - 1, month, day);
+    date = new Date(Date.UTC(refYear - 1, month, day));
   } else if (diffMs < -sixMonthsMs) {
-    date = new Date(refYear + 1, month, day);
+    date = new Date(Date.UTC(refYear + 1, month, day));
   }
 
   return date;
 }
 
 function formatISODate(date: Date): string {
-  const y = date.getFullYear();
-  const m = (date.getMonth() + 1).toString().padStart(2, '0');
-  const d = date.getDate().toString().padStart(2, '0');
+  const y = date.getUTCFullYear();
+  const m = (date.getUTCMonth() + 1).toString().padStart(2, '0');
+  const d = date.getUTCDate().toString().padStart(2, '0');
   return `${y}-${m}-${d}`;
 }
 
