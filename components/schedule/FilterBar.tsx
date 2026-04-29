@@ -12,6 +12,9 @@ interface FilterBarProps {
   positions: string[];
   loadHotels: (tenant: string) => void;
   loading: boolean;
+  hotelsLoading?: boolean;
+  departmentsLoading?: boolean;
+  positionsLoading?: boolean;
 }
 
 const selectClasses =
@@ -28,6 +31,9 @@ export default function FilterBar({
   positions,
   loadHotels,
   loading,
+  hotelsLoading = false,
+  departmentsLoading = false,
+  positionsLoading = false,
 }: FilterBarProps) {
   function handleTenantChange(value: string) {
     setFilters((prev) => ({
@@ -91,53 +97,83 @@ export default function FilterBar({
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className={labelClasses}>Hotel</label>
+          <label className={labelClasses}>
+            Hotel
+            {hotelsLoading && (
+              <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
+                Loading…
+              </span>
+            )}
+          </label>
           <select
             className={selectClasses}
             value={filters.hotel}
             onChange={(e) => handleHotelChange(e.target.value)}
-            disabled={!filters.tenant || loading}
+            disabled={!filters.tenant || hotelsLoading || loading}
           >
-            <option value="">-- Select Hotel --</option>
-            {hotels.map((h) => (
-              <option key={`${h.branchId}-${h.usrSystemCompanyId}`} value={h.hotelName}>
-                {h.hotelName}
-              </option>
-            ))}
+            <option value="">
+              {hotelsLoading ? 'Loading hotels…' : '-- Select Hotel --'}
+            </option>
+            {!hotelsLoading &&
+              hotels.map((h) => (
+                <option key={`${h.branchId}-${h.usrSystemCompanyId}`} value={h.hotelName}>
+                  {h.hotelName}
+                </option>
+              ))}
           </select>
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className={labelClasses}>Department</label>
+          <label className={labelClasses}>
+            Department
+            {departmentsLoading && (
+              <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
+                Loading…
+              </span>
+            )}
+          </label>
           <select
             className={selectClasses}
             value={filters.department}
             onChange={(e) => handleDepartmentChange(e.target.value)}
-            disabled={!filters.hotel || loading}
+            disabled={!filters.hotel || departmentsLoading || loading}
           >
-            <option value="">-- All Departments --</option>
-            {departments.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
+            <option value="">
+              {departmentsLoading ? 'Loading departments…' : '-- All Departments --'}
+            </option>
+            {!departmentsLoading &&
+              departments.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
           </select>
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className={labelClasses}>Position</label>
+          <label className={labelClasses}>
+            Position
+            {positionsLoading && (
+              <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
+                Loading…
+              </span>
+            )}
+          </label>
           <select
             className={selectClasses}
             value={filters.position}
             onChange={(e) => handlePositionChange(e.target.value)}
-            disabled={!filters.hotel || loading}
+            disabled={!filters.hotel || positionsLoading || loading}
           >
-            <option value="">-- All Positions --</option>
-            {positions.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
+            <option value="">
+              {positionsLoading ? 'Loading positions…' : '-- All Positions --'}
+            </option>
+            {!positionsLoading &&
+              positions.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
           </select>
         </div>
 

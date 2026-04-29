@@ -35,6 +35,9 @@ export default function SchedulePage() {
     hotels,
     departments,
     positions,
+    hotelsLoading,
+    departmentsLoading,
+    positionsLoading,
     loadTenants,
     loadHotels,
     loadSchedule,
@@ -100,6 +103,9 @@ export default function SchedulePage() {
         positions={positions}
         loadHotels={loadHotels}
         loading={loading}
+        hotelsLoading={hotelsLoading}
+        departmentsLoading={departmentsLoading}
+        positionsLoading={positionsLoading}
       />
 
       <ActionBar

@@ -98,6 +98,12 @@ export function useScheduleState() {
   const [departments, setDepartments] = useState<string[]>([]);
   const [positions, setPositions] = useState<string[]>([]);
 
+  // Loading flags for dropdowns so the UI can show "Loading…" instead of an
+  // empty list while these requests are in flight.
+  const [hotelsLoading, setHotelsLoading] = useState(false);
+  const [departmentsLoading, setDepartmentsLoading] = useState(false);
+  const [positionsLoading, setPositionsLoading] = useState(false);
+
   // ── Loaders ────────────────────────────────────────────────────────────────
 
   const loadTenants = useCallback(async () => {
@@ -112,6 +118,8 @@ export function useScheduleState() {
   }, []);
 
   const loadHotels = useCallback(async (tenant: string) => {
+    setHotelsLoading(true);
+    setHotels([]);
     try {
       const res = await fetch(`/api/hotels/${encodeURIComponent(tenant)}`);
       if (!res.ok) throw new Error('Failed to load hotels');
@@ -119,11 +127,15 @@ export function useScheduleState() {
       setHotels(json.hotels ?? json);
     } catch (err) {
       toast.error(errorMessage(err, 'Failed to load hotels'));
+    } finally {
+      setHotelsLoading(false);
     }
   }, []);
 
   const loadDepartments = useCallback(async () => {
     if (!filters.hotelInfo) return;
+    setDepartmentsLoading(true);
+    setDepartments([]);
     try {
       const params = new URLSearchParams({
         hotel: filters.hotel,
@@ -138,11 +150,15 @@ export function useScheduleState() {
       setDepartments(json.departments ?? json);
     } catch (err) {
       toast.error(errorMessage(err, 'Failed to load departments'));
+    } finally {
+      setDepartmentsLoading(false);
     }
   }, [filters.hotel, filters.hotelInfo]);
 
   const loadPositions = useCallback(async () => {
     if (!filters.hotelInfo) return;
+    setPositionsLoading(true);
+    setPositions([]);
     try {
       const params = new URLSearchParams({
         hotel: filters.hotel,
@@ -158,6 +174,8 @@ export function useScheduleState() {
       setPositions(json.positions ?? json);
     } catch (err) {
       toast.error(errorMessage(err, 'Failed to load positions'));
+    } finally {
+      setPositionsLoading(false);
     }
   }, [filters.hotel, filters.hotelInfo, filters.department]);
 
@@ -408,6 +426,9 @@ export function useScheduleState() {
     hotels,
     departments,
     positions,
+    hotelsLoading,
+    departmentsLoading,
+    positionsLoading,
 
     // Loaders
     loadTenants,
