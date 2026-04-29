@@ -419,6 +419,63 @@ describe('ScheduleService.clear', () => {
 
     expect(result).toEqual({ deleted: 0, lockedSkipped: 0 });
   });
+
+  // Regression for the C-1 OR-key collision: when scope is non-null, the
+  // clearLocked=false branch must AND the locked-clause OR with the scope OR
+  // rather than spread-merging both into the same key.
+  it('clearLocked=false preserves scope filter (no OR-key collision)', async () => {
+    db.laborSchedule.count.mockResolvedValue(0);
+    db.laborSchedule.findMany.mockResolvedValue([]);
+    db.laborSchedule.deleteMany.mockResolvedValue({ count: 0 });
+
+    await svc.clear(
+      {
+        usrSystemCompanyId: 'CO1',
+        employeeCodes: ['E001'],
+        startDate: '2024-01-01',
+        endDate: '2024-01-07',
+        clearLocked: false,
+        scope: [{ hotelName: 'Hotel A' }, { hotelName: 'Hotel B', deptName: 'HK' }],
+      },
+      CTX,
+    );
+
+    const deleteCall = db.laborSchedule.deleteMany.mock.calls.at(-1)?.[0];
+    expect(deleteCall).toBeDefined();
+    const where = deleteCall.where;
+    // Combined via AND so neither OR is overwritten.
+    expect(where.AND).toBeDefined();
+    expect(Array.isArray(where.AND)).toBe(true);
+    // Scope OR must survive intact.
+    const json = JSON.stringify(where);
+    expect(json).toContain('Hotel A');
+    expect(json).toContain('Hotel B');
+    expect(json).toContain('HK');
+    // Locked clause must also survive.
+    expect(json).toMatch(/"locked":\s*false/);
+  });
+
+  it('scope=[] is enforced as forbidden filter at service layer', async () => {
+    db.laborSchedule.count.mockResolvedValue(0);
+    db.laborSchedule.findMany.mockResolvedValue([]);
+    db.laborSchedule.deleteMany.mockResolvedValue({ count: 0 });
+
+    await svc.clear(
+      {
+        usrSystemCompanyId: 'CO1',
+        employeeCodes: ['E001'],
+        startDate: '2024-01-01',
+        endDate: '2024-01-07',
+        clearLocked: true,
+        scope: [],
+      },
+      CTX,
+    );
+
+    const deleteCall = db.laborSchedule.deleteMany.mock.calls.at(-1)?.[0];
+    // Empty-scope where contains an impossible-match clause.
+    expect(JSON.stringify(deleteCall.where)).toContain('"id"');
+  });
 });
 
 // ------- delete -------

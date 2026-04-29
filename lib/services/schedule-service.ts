@@ -412,9 +412,12 @@ export class ScheduleService {
         deleted = result.count;
       } else {
         lockedSkipped = await tx.laborSchedule.count({ where: { ...baseWhere, locked: true } });
+        // baseWhere may already contain an `OR:` from scopeToWhere. Merging
+        // a second `OR` via spread would silently overwrite the scope OR and
+        // re-introduce the C1 cross-hotel destruction bug — so combine via
+        // AND instead.
         const deleteWhere: Prisma.LaborScheduleWhereInput = {
-          ...baseWhere,
-          OR: [{ locked: false }, { locked: null }],
+          AND: [baseWhere, { OR: [{ locked: false }, { locked: null }] }],
         };
         const records = await tx.laborSchedule.findMany({ where: deleteWhere });
         for (const r of records) {
