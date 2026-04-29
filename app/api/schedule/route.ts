@@ -30,6 +30,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const checker = await getUserPermissions(parseInt(userId));
+    if (!checker) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    if (!checker.isSuperAdmin()) {
+      const ok = await checker.hasHotelAccess({ hotel, usrSystemCompanyId });
+      if (!ok) {
+        return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+      }
+    }
+
     // Build date range (default +/- 7 days from today)
     const today = new Date();
     const start = startDate
@@ -57,10 +69,6 @@ export async function GET(request: NextRequest) {
 
     // DeptAdmin restriction
     if (role === 'DeptAdmin') {
-      const checker = await getUserPermissions(parseInt(userId));
-      if (!checker) {
-        return NextResponse.json({ error: 'User not found' }, { status: 404 });
-      }
       const ds = checker.getAccessibleDepts();
       if (ds.unlimited)
         return NextResponse.json({

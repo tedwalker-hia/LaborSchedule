@@ -8,6 +8,25 @@ import {
 import { PayrollRepo, makePayrollRepo } from '../repositories/payroll-repo';
 import { AuditService, AuditCtx, makeAuditService } from './audit-service';
 import { calcHours } from '../domain/rules';
+import type { ScheduleScope } from '../auth/rbac';
+
+/**
+ * Converts a route-derived `ScheduleScope` into a Prisma where fragment that
+ * the service spreads into its mutation where clauses. `null` (unrestricted)
+ * yields an empty fragment; `[]` (forbidden) yields an impossible match — the
+ * route should already reject this case but the service stays safe if it
+ * doesn't.
+ */
+function scopeToWhere(scope?: ScheduleScope): Prisma.LaborScheduleWhereInput {
+  if (scope === null || scope === undefined) return {};
+  if (scope.length === 0) return { id: { lt: 0 } };
+  return {
+    OR: scope.map((s) => ({
+      hotelName: s.hotelName,
+      ...(s.deptName ? { deptName: s.deptName } : {}),
+    })),
+  };
+}
 
 export class DuplicateScheduleError extends Error {
   readonly statusHint = 409;
@@ -67,6 +86,7 @@ export interface LockParams {
   usrSystemCompanyId: string;
   records: LockRecord[];
   locked: boolean;
+  scope?: ScheduleScope;
 }
 
 export interface ClearParams {
@@ -75,6 +95,7 @@ export interface ClearParams {
   startDate: string;
   endDate: string;
   clearLocked?: boolean;
+  scope?: ScheduleScope;
 }
 
 export interface DeleteParams {
@@ -82,6 +103,7 @@ export interface DeleteParams {
   employeeCodes: string[];
   startDate: string;
   endDate: string;
+  scope?: ScheduleScope;
 }
 
 export interface CheckLockedParams {
@@ -89,6 +111,7 @@ export interface CheckLockedParams {
   employeeCodes: string[];
   startDate: string;
   endDate: string;
+  scope?: ScheduleScope;
 }
 
 export interface RosterEmployee {
@@ -109,6 +132,7 @@ export interface UpdatePlacementParams {
   oldPositionName?: string | null;
   newDeptName?: string | null;
   newPositionName?: string | null;
+  scope?: ScheduleScope;
 }
 
 export interface RefreshEmployee {
@@ -314,24 +338,21 @@ export class ScheduleService {
 
   async lock(params: LockParams, ctx: AuditCtx): Promise<{ updated: number }> {
     let updatedCount = 0;
+    const scopeWhere = scopeToWhere(params.scope);
 
     await this.db.$transaction(async (tx) => {
       for (const rec of params.records) {
         const scheduleDate = new Date(rec.date + 'T00:00:00Z');
-        const records = await tx.laborSchedule.findMany({
-          where: {
-            usrSystemCompanyId: params.usrSystemCompanyId,
-            employeeCode: rec.employeeCode,
-            scheduleDate,
-          },
-        });
+        const where: Prisma.LaborScheduleWhereInput = {
+          usrSystemCompanyId: params.usrSystemCompanyId,
+          employeeCode: rec.employeeCode,
+          scheduleDate,
+          ...scopeWhere,
+        };
+        const records = await tx.laborSchedule.findMany({ where });
         if (records.length > 0) {
           await tx.laborSchedule.updateMany({
-            where: {
-              usrSystemCompanyId: params.usrSystemCompanyId,
-              employeeCode: rec.employeeCode,
-              scheduleDate,
-            },
+            where,
             data: { locked: params.locked },
           });
           for (const r of records) {
@@ -366,6 +387,7 @@ export class ScheduleService {
       usrSystemCompanyId: params.usrSystemCompanyId,
       employeeCode: { in: params.employeeCodes },
       scheduleDate: { gte: startDate, lte: endDate },
+      ...scopeToWhere(params.scope),
     };
 
     let deleted = 0;
@@ -422,6 +444,7 @@ export class ScheduleService {
       usrSystemCompanyId: params.usrSystemCompanyId,
       employeeCode: { in: params.employeeCodes },
       scheduleDate: { gte: startDate, lte: endDate },
+      ...scopeToWhere(params.scope),
     };
 
     let deleted = 0;
@@ -453,6 +476,7 @@ export class ScheduleService {
       employeeCodes: params.employeeCodes,
       startDate: new Date(params.startDate + 'T00:00:00Z'),
       endDate: new Date(params.endDate + 'T00:00:00Z'),
+      extraWhere: scopeToWhere(params.scope),
     });
   }
 
@@ -468,6 +492,7 @@ export class ScheduleService {
       oldPositionName: params.oldPositionName ?? null,
       newDeptName: params.newDeptName ?? null,
       newPositionName: params.newPositionName ?? null,
+      extraWhere: scopeToWhere(params.scope),
     });
     return { updated };
   }

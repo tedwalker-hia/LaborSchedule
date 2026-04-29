@@ -41,6 +41,18 @@ export type DeptScope =
   | { unlimited: true }
   | { unlimited: false; allowed: { hotelName: string; deptName: string }[] };
 
+/**
+ * Result of resolving a user's schedule-mutation scope under one
+ * `usrSystemCompanyId`:
+ *
+ * - `null`: unrestricted (SuperAdmin, or CompanyAdmin whose tenant covers the
+ *   company). The route imposes no extra filter.
+ * - `[]`: no access. The route should reject with 403.
+ * - non-empty array: rows must match one of these `(hotelName, deptName?)`
+ *   pairs. `deptName` absent means any dept under that hotel.
+ */
+export type ScheduleScope = Array<{ hotelName: string; deptName?: string }> | null;
+
 /** Scope of a user being created/edited/deleted. Used by `canManageUser`. */
 export interface TargetUserScope {
   tenants?: string[];
@@ -146,6 +158,134 @@ export class PermissionChecker {
       unlimited: false,
       allowed: this.user.departments.map((d) => ({ hotelName: d.hotelName, deptName: d.deptName })),
     };
+  }
+
+  /**
+   * Whether the user may act on records carrying this `usrSystemCompanyId`.
+   * Used by mutating routes (delete/clear/lock/check-locked, employee update)
+   * whose payloads identify rows by company id rather than hotel name. Coarser
+   * than `hasHotelAccess` — within-company cross-hotel access is not blocked
+   * here; routes that need that should also check `hasHotelAccess`.
+   */
+  async hasCompanyAccess(usrSystemCompanyId: string): Promise<boolean> {
+    if (this.isSuperAdmin()) return true;
+
+    if (this.user.hotels.some((h) => h.usrSystemCompanyId === usrSystemCompanyId)) {
+      return true;
+    }
+
+    if (this.user.role === 'CompanyAdmin' && this.user.tenants.length > 0) {
+      const tenants = this.user.tenants.map((t) => t.tenant);
+      const match = await prisma.userHotel.findFirst({
+        where: { usrSystemCompanyId, tenant: { in: tenants } },
+        select: { id: true },
+      });
+      return match !== null;
+    }
+
+    return false;
+  }
+
+  /**
+   * Whether the user may read/act under this hotel. CompanyAdmin tenant scope
+   * is resolved via UserHotel, so a CompanyAdmin without a direct hotel grant
+   * is admitted iff some user's hotel record under one of their tenants
+   * matches.
+   */
+  async hasHotelAccess(target: {
+    hotel: string;
+    usrSystemCompanyId?: string | null;
+  }): Promise<boolean> {
+    if (this.isSuperAdmin()) return true;
+
+    if (this.user.role === 'HotelAdmin') {
+      return this.user.hotels.some((h) => h.hotelName === target.hotel);
+    }
+
+    if (this.user.role === 'DeptAdmin') {
+      return this.user.departments.some((d) => d.hotelName === target.hotel);
+    }
+
+    if (this.user.role === 'CompanyAdmin') {
+      if (this.user.hotels.some((h) => h.hotelName === target.hotel)) return true;
+      if (this.user.tenants.length === 0) return false;
+      const tenants = this.user.tenants.map((t) => t.tenant);
+      const match = await prisma.userHotel.findFirst({
+        where: {
+          hotelName: target.hotel,
+          tenant: { in: tenants },
+          ...(target.usrSystemCompanyId
+            ? { usrSystemCompanyId: target.usrSystemCompanyId }
+            : {}),
+        },
+        select: { id: true },
+      });
+      return match !== null;
+    }
+
+    return false;
+  }
+
+  /**
+   * Resolves the (hotel, dept) pairs the user may mutate under this company.
+   * Returns null for unrestricted, [] for forbidden, or a list of allowed
+   * pairs that the service should AND-into its where clause as an OR over the
+   * pairs.
+   */
+  async deriveScheduleScope(usrSystemCompanyId: string): Promise<ScheduleScope> {
+    if (this.isSuperAdmin()) return null;
+
+    if (this.user.role === 'CompanyAdmin') {
+      // Tenant-level grant covering this company: unrestricted within company.
+      if (this.user.tenants.length > 0) {
+        const tenants = this.user.tenants.map((t) => t.tenant);
+        const tenantMatch = await prisma.userHotel.findFirst({
+          where: { usrSystemCompanyId, tenant: { in: tenants } },
+          select: { id: true },
+        });
+        if (tenantMatch) return null;
+      }
+      return this.user.hotels
+        .filter((h) => h.usrSystemCompanyId === usrSystemCompanyId)
+        .map((h) => ({ hotelName: h.hotelName }));
+    }
+
+    if (this.user.role === 'HotelAdmin') {
+      return this.user.hotels
+        .filter((h) => h.usrSystemCompanyId === usrSystemCompanyId)
+        .map((h) => ({ hotelName: h.hotelName }));
+    }
+
+    if (this.user.role === 'DeptAdmin') {
+      // Department assignments don't carry usrSystemCompanyId. Resolve which
+      // of the user's dept-hotels actually belong to this company by
+      // intersecting with their hotel-level grants and (if needed) a
+      // UserHotel lookup.
+      const directCompanyHotels = new Set(
+        this.user.hotels
+          .filter((h) => h.usrSystemCompanyId === usrSystemCompanyId)
+          .map((h) => h.hotelName),
+      );
+      const allDeptHotels = new Set(this.user.departments.map((d) => d.hotelName));
+      const allowed = new Set<string>();
+      for (const h of allDeptHotels) {
+        if (directCompanyHotels.has(h)) allowed.add(h);
+      }
+      const unresolved = [...allDeptHotels].filter((h) => !directCompanyHotels.has(h));
+      if (unresolved.length > 0) {
+        const found = await prisma.userHotel.findMany({
+          where: { usrSystemCompanyId, hotelName: { in: unresolved } },
+          select: { hotelName: true },
+          distinct: ['hotelName'],
+        });
+        for (const f of found) allowed.add(f.hotelName);
+      }
+      return this.user.departments
+        .filter((d) => allowed.has(d.hotelName))
+        .map((d) => ({ hotelName: d.hotelName, deptName: d.deptName }));
+    }
+
+    return [];
   }
 
   hasScheduleAccess(target: {

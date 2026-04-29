@@ -15,19 +15,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
-  const perms = await getUserPermissions(user.userId);
-  if (!perms || !perms.hasScheduleAccess({})) {
-    return NextResponse.json({ error: 'forbidden', missingScope: {} }, { status: 403 });
-  }
-
   const parsed = LockBodySchema.safeParse(await request.json());
   if (!parsed.success) {
     return NextResponse.json({ issues: parsed.error.issues }, { status: 400 });
   }
 
+  const perms = await getUserPermissions(user.userId);
+  if (!perms) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  }
+  const scope = await perms.deriveScheduleScope(parsed.data.usrSystemCompanyId);
+  if (scope !== null && scope.length === 0) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  }
+
   try {
     const svc = makeScheduleService();
-    const result = await svc.lock(parsed.data, { userId: user.userId, source: 'api' });
+    const result = await svc.lock(
+      { ...parsed.data, scope },
+      { userId: user.userId, source: 'api' },
+    );
     return NextResponse.json(result);
   } catch (error) {
     return mapErrorResponse(error, 'Schedule lock error');

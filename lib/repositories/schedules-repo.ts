@@ -169,6 +169,7 @@ export class SchedulesRepo {
     employeeCodes: string[];
     startDate: Date;
     endDate: Date;
+    extraWhere?: Prisma.LaborScheduleWhereInput;
   }): Promise<LockedRecord[]> {
     const records = await this.db.laborSchedule.groupBy({
       by: ['employeeCode', 'firstName', 'lastName'],
@@ -177,6 +178,7 @@ export class SchedulesRepo {
         employeeCode: { in: params.employeeCodes },
         scheduleDate: { gte: params.startDate, lte: params.endDate },
         locked: true,
+        ...(params.extraWhere ?? {}),
       },
       _count: { id: true },
     });
@@ -234,6 +236,7 @@ export class SchedulesRepo {
     oldPositionName: string | null;
     newDeptName: string | null;
     newPositionName: string | null;
+    extraWhere?: Prisma.LaborScheduleWhereInput;
   }): Promise<number> {
     const result = await this.db.laborSchedule.updateMany({
       where: {
@@ -241,6 +244,7 @@ export class SchedulesRepo {
         employeeCode: params.employeeCode,
         deptName: params.oldDeptName,
         positionName: params.oldPositionName,
+        ...(params.extraWhere ?? {}),
       },
       data: {
         deptName: params.newDeptName,
