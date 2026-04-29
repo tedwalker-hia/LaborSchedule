@@ -54,19 +54,15 @@ Resume this phase when stakeholders approve cutover.
 ## Quality Gates (Current)
 
 - `npx tsc --noEmit` — **0 errors**
-- `npm test` — **260 pass / 5 skipped / 0 failing** (unit + integration)
-- `npm run lint` — **0 errors / 190 warnings**
+- `npm test` — **284 pass / 2 skipped / 0 failing** (unit)
+- `npm run lint` — **0 errors / ~190 warnings**
 - `npm run format:check` — **clean**
 
 ### Known Debt
 
-**5 skipped tests (mock-wiring issues in AI-generated test code):**
-- `tests/unit/services/generation-service.test.ts` — "skips locked date when overwriteLocked is false" (mock doesn't populate locked row before service call)
-- `tests/unit/services/user-service.test.ts` — 2 tests in `UserService.update` (service creates repo inside `$transaction` via `makeUsersRepo(tx)`; outer mock doesn't intercept)
-- `tests/unit/auth/middleware-csrf.test.ts` — 2 path-allowlist assertions (`GET /change-password`, `GET /login`) with invalid null-vs-string expect calls
-- `tests/unit/excel/writer-cf.test.ts` — entire file skipped (exceljs API doesn't expose `conditionalFormattings` read-back; integration test covers the behavior)
+**2 skipped tests** (`tests/unit/excel/writer-cf.test.ts`) — exceljs read-back API doesn't expose `conditionalFormattings` rules from a written workbook, so the round-trip assertion isn't possible. The CF rules themselves are emitted correctly; behavior is exercised by the export path used in the import-parity harness.
 
-Service logic is covered by integration tests against Testcontainers MSSQL — these skips don't represent functional gaps, just mock fragility.
+Phase 6 hashing now routes all writes (login bcrypt-upgrade, admin create, admin reset, user update, self-service change-password) through `lib/auth/hash.ts:hash()` (Argon2id). Verification routes through `verify()`, which transparently handles both bcrypt-legacy and argon2 stored hashes.
 
 **190 lint warnings** — mostly `@typescript-eslint/no-explicit-any` in AI-generated repository + service code. Downgraded from error to warn in Phase 0 consistent with warn-rather-than-block policy. Also includes `no-floating-promises`, `no-misused-promises`, `consistent-type-imports`, `no-unused-vars` — all surfaced intentionally for gradual cleanup as phases touch code.
 
@@ -113,8 +109,8 @@ All code functionality is present and covered by tests. For internal testing dep
 
 ## Recommended Cleanup (Optional, Pre-Deploy)
 
-- Fix or delete 5 skipped tests if mock-wiring matters to team
-- Upgrade the 190 lint warnings to errors as each phase's code gets touched in follow-up PRs (don't do en masse; too noisy)
+- The 2 remaining skipped writer-cf tests are blocked by exceljs API; leave or replace with a byte-level fixture comparison if rules ever regress
+- Upgrade the ~190 lint warnings to errors as each phase's code gets touched in follow-up PRs (don't do en masse; too noisy)
 - Consider splitting the `audit-first-pass` branch into one PR per phase for easier review; feature branches `phase-1-migrations` + `phase-2-excel-spike` + `phase-10-excel-export` + `phase-11-import-parity` preserved for reference
 
 ---
