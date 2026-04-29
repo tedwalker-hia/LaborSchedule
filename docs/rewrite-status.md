@@ -113,6 +113,22 @@ All code functionality is present and covered by tests. For internal testing dep
 - Upgrade the ~190 lint warnings to errors as each phase's code gets touched in follow-up PRs (don't do en masse; too noisy)
 - Consider splitting the `audit-first-pass` branch into one PR per phase for easier review; feature branches `phase-1-migrations` + `phase-2-excel-spike` + `phase-10-excel-export` + `phase-11-import-parity` preserved for reference
 
+## Post-merge follow-ups (RBAC scope hardening)
+
+Surfaced by the third review pass (PR #1, after `e2ea38b`). The two Critical issues (clear OR-collision, save/generate/import scope) were closed in this branch; these are the remaining surfaces that were deliberately out of scope.
+
+- **Migrate remaining routes to `hasHotelAccess` + `deriveScheduleScope`.** Six routes still call sync `hasScheduleAccess` without passing `usrSystemCompanyId`, leaving the I-6 surface (CompanyAdmin tenant grant admits any hotel without verifying hotel-tenant binding) open for them:
+  - `app/api/employees/refresh-preview/route.ts`
+  - `app/api/employees/refresh/route.ts`
+  - `app/api/payroll/seed/route.ts`
+  - `app/api/schedule/add/route.ts`
+  - `app/api/schedule/export/route.ts`
+  - `app/api/schedule/import/preview/route.ts`
+- **Generation insert-side scope filter.** `GenerationService.splitByPosition` inserts rows with `deptName`/`positionName` from payroll history with no scope filter on the *create*. A DeptAdmin scoped to one dept could implicitly generate rows in adjacent depts via multi-position history. The destruction surface is closed; the insertion surface is not.
+- **Defense in depth on `SchedulesRepo.findFirst`.** Currently spreads `extraWhere` after `rest`, so a future caller passing `hotelName` inside `extraWhere` would shadow the explicit pin. Flip to `{...extraWhere, ...rest}` so the explicit pin always wins. No current caller hits this.
+- **Auto-rehash bcrypt-on-login.** `lib/auth/hash.ts:needsUpgrade()` exists but no caller invokes it. Wire into the login path so legacy bcrypt rows get upgraded to argon2 on first successful login. ~5 lines.
+- **Drop bcryptjs.** Once a migration confirms no bcrypt-format rows remain in `passwordHash`, remove the dependency.
+
 ---
 
 ## Quick Reference
