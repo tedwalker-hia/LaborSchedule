@@ -7,7 +7,6 @@ import { issueToken, verifyToken, needsCsrf, CSRF_COOKIE, CSRF_HEADER } from '@/
 const PUBLIC_PATHS = new Set([
   '/',
   '/login',
-  '/change-password',
   '/api/auth/login',
   '/api/health',
   '/favicon.ico',

@@ -42,9 +42,16 @@ export default function ChangePasswordPage() {
 
     setLoading(true);
     try {
+      const csrfToken = document.cookie
+        .split('; ')
+        .find((c) => c.startsWith('csrf_token='))
+        ?.split('=')[1];
       const response = await fetch('/api/auth/change-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+        },
         body: JSON.stringify({ newPassword, currentPassword }),
       });
 
