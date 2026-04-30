@@ -11,6 +11,17 @@ export async function GET() {
     return NextResponse.json({ status: 'healthy', database: 'connected' });
   } catch (error) {
     logger.error({ err: error }, 'Health check failed');
-    return NextResponse.json({ status: 'unhealthy', database: 'disconnected' }, { status: 503 });
+    const detail =
+      process.env.HEALTH_DEBUG === 'true'
+        ? {
+            name: error instanceof Error ? error.name : undefined,
+            message: error instanceof Error ? error.message : String(error),
+            code: (error as { code?: unknown })?.code,
+          }
+        : undefined;
+    return NextResponse.json(
+      { status: 'unhealthy', database: 'disconnected', detail },
+      { status: 503 },
+    );
   }
 }
