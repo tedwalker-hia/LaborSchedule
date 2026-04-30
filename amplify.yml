@@ -19,6 +19,7 @@ frontend:
         - if [ -n "$DATABASE_URL" ]; then printf 'DATABASE_URL=%s\n' "$DATABASE_URL" >> .env.production; echo "wrote DATABASE_URL"; else echo "WARN DATABASE_URL missing in build env"; fi
         - if [ -n "$AUDIT_ENABLED" ]; then printf 'AUDIT_ENABLED=%s\n' "$AUDIT_ENABLED" >> .env.production; fi
         - if [ -n "$REDIS_URL" ]; then printf 'REDIS_URL=%s\n' "$REDIS_URL" >> .env.production; fi
+        - if [ -n "$HEALTH_DEBUG" ]; then printf 'HEALTH_DEBUG=%s\n' "$HEALTH_DEBUG" >> .env.production; fi
         - npm run build
   artifacts:
     baseDirectory: .next
