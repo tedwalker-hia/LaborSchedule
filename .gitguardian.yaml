@@ -5,3 +5,7 @@ version: 2
 # gitignored and remains in scope for scanning.
 paths-ignore:
   - ".env.example"
+  # validatePassword.test.ts feeds the validator password-shaped strings as
+  # test fixtures (e.g. 'secure1!abc'); GitGuardian flags them as Generic
+  # Password. They are inputs being asserted on, not secrets.
+  - "tests/unit/rules/validatePassword.test.ts"

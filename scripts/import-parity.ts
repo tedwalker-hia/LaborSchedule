@@ -30,7 +30,7 @@ const ROOT = join(__dirname, '..');
 const EXCEL_DIR = join(ROOT, 'tests', 'fixtures', 'excel');
 const BASELINES_DIR = join(EXCEL_DIR, 'baselines');
 
-const SA_PASSWORD = 'IntTest_Pa55w!';
+const SA_PASSWORD = process.env.TEST_DB_SA_PASSWORD ?? 'IntTest_Pa55w!';
 const TEST_DB = 'ParityTest';
 const CAPTURE = process.argv.includes('--capture');
 
