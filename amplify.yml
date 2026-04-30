@@ -14,12 +14,28 @@ frontend:
         # Amplify Console env vars reach the build env but are not always
         # propagated into the SSR Lambda runtime. Persist required vars into
         # .env.production so Next.js standalone loads them via next/env at boot.
+        #
+        # Each value is:
+        #   - stripped of trailing CR/LF/whitespace (catches CRLF paste artifacts)
+        #   - wrapped in single quotes so dotenv preserves it verbatim
+        #     (avoids the `#`-as-inline-comment truncation on unquoted values)
+        # Single quotes inside values are not supported by this writer.
         - rm -f .env.production
-        - if [ -n "$JWT_SECRET" ]; then printf 'JWT_SECRET=%s\n' "$JWT_SECRET" >> .env.production; echo "wrote JWT_SECRET (len=${#JWT_SECRET})"; else echo "WARN JWT_SECRET missing in build env"; fi
-        - if [ -n "$DATABASE_URL" ]; then printf 'DATABASE_URL=%s\n' "$DATABASE_URL" >> .env.production; echo "wrote DATABASE_URL"; else echo "WARN DATABASE_URL missing in build env"; fi
-        - if [ -n "$AUDIT_ENABLED" ]; then printf 'AUDIT_ENABLED=%s\n' "$AUDIT_ENABLED" >> .env.production; fi
-        - if [ -n "$REDIS_URL" ]; then printf 'REDIS_URL=%s\n' "$REDIS_URL" >> .env.production; fi
-        - if [ -n "$HEALTH_DEBUG" ]; then printf 'HEALTH_DEBUG=%s\n' "$HEALTH_DEBUG" >> .env.production; fi
+        - |
+          write_env() {
+            local key="$1" raw="$2"
+            if [ -z "$raw" ]; then echo "WARN $key missing in build env"; return; fi
+            local trimmed
+            trimmed="$(printf '%s' "$raw" | tr -d '\r' | sed -E 's/[[:space:]]+$//')"
+            printf "%s='%s'\n" "$key" "$trimmed" >> .env.production
+            echo "wrote $key (raw_len=${#raw} trimmed_len=${#trimmed})"
+          }
+          write_env JWT_SECRET    "${JWT_SECRET-}"
+          write_env DATABASE_URL  "${DATABASE_URL-}"
+          [ -n "${AUDIT_ENABLED-}" ] && write_env AUDIT_ENABLED "${AUDIT_ENABLED-}"
+          [ -n "${REDIS_URL-}" ]     && write_env REDIS_URL     "${REDIS_URL-}"
+          [ -n "${HEALTH_DEBUG-}" ]  && write_env HEALTH_DEBUG  "${HEALTH_DEBUG-}"
+          true
         - npm run build
   artifacts:
     baseDirectory: .next
