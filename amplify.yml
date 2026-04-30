@@ -11,31 +11,15 @@ frontend:
     build:
       commands:
         - export NODE_ENV=production
-        # Amplify Console env vars reach the build env but are not always
-        # propagated into the SSR Lambda runtime. Persist required vars into
-        # .env.production so Next.js standalone loads them via next/env at boot.
-        #
-        # Each value is:
-        #   - stripped of trailing CR/LF/whitespace (catches CRLF paste artifacts)
-        #   - wrapped in single quotes so dotenv preserves it verbatim
-        #     (avoids the `#`-as-inline-comment truncation on unquoted values)
-        # Single quotes inside values are not supported by this writer.
+        - echo "==== AMPLIFY_YAML_BUILD_PHASE_REACHED ===="
         - rm -f .env.production
-        - |
-          write_env() {
-            local key="$1" raw="$2"
-            if [ -z "$raw" ]; then echo "WARN $key missing in build env"; return; fi
-            local trimmed
-            trimmed="$(printf '%s' "$raw" | tr -d '\r' | sed -E 's/[[:space:]]+$//')"
-            printf "%s='%s'\n" "$key" "$trimmed" >> .env.production
-            echo "wrote $key (raw_len=${#raw} trimmed_len=${#trimmed})"
-          }
-          write_env JWT_SECRET    "${JWT_SECRET-}"
-          write_env DATABASE_URL  "${DATABASE_URL-}"
-          [ -n "${AUDIT_ENABLED-}" ] && write_env AUDIT_ENABLED "${AUDIT_ENABLED-}"
-          [ -n "${REDIS_URL-}" ]     && write_env REDIS_URL     "${REDIS_URL-}"
-          [ -n "${HEALTH_DEBUG-}" ]  && write_env HEALTH_DEBUG  "${HEALTH_DEBUG-}"
-          true
+        - if [ -n "$JWT_SECRET" ]; then v="$(printf '%s' "$JWT_SECRET" | tr -d '\r' | sed -E 's/[[:space:]]+$//')"; printf "JWT_SECRET='%s'\n" "$v" >> .env.production; echo "wrote JWT_SECRET raw_len=${#JWT_SECRET} trimmed_len=${#v}"; else echo "WARN JWT_SECRET missing"; fi
+        - if [ -n "$DATABASE_URL" ]; then v="$(printf '%s' "$DATABASE_URL" | tr -d '\r' | sed -E 's/[[:space:]]+$//')"; printf "DATABASE_URL='%s'\n" "$v" >> .env.production; echo "wrote DATABASE_URL raw_len=${#DATABASE_URL} trimmed_len=${#v}"; else echo "WARN DATABASE_URL missing"; fi
+        - if [ -n "$AUDIT_ENABLED" ]; then v="$(printf '%s' "$AUDIT_ENABLED" | tr -d '\r' | sed -E 's/[[:space:]]+$//')"; printf "AUDIT_ENABLED='%s'\n" "$v" >> .env.production; echo "wrote AUDIT_ENABLED"; fi
+        - if [ -n "$REDIS_URL" ]; then v="$(printf '%s' "$REDIS_URL" | tr -d '\r' | sed -E 's/[[:space:]]+$//')"; printf "REDIS_URL='%s'\n" "$v" >> .env.production; echo "wrote REDIS_URL"; fi
+        - if [ -n "$HEALTH_DEBUG" ]; then v="$(printf '%s' "$HEALTH_DEBUG" | tr -d '\r' | sed -E 's/[[:space:]]+$//')"; printf "HEALTH_DEBUG='%s'\n" "$v" >> .env.production; echo "wrote HEALTH_DEBUG"; fi
+        - echo "==== .env.production contents (keys only) ===="
+        - awk -F= '{print $1}' .env.production || true
         - npm run build
   artifacts:
     baseDirectory: .next
