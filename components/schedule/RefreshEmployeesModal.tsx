@@ -1,54 +1,76 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
-import Modal from '@/components/ui/Modal'
-import { FilterState } from '@/components/schedule/useScheduleState'
+import { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
+import Alert from '@/components/ui/Alert';
+import { useWizard, Wizard } from '@/components/ui/Wizard';
+import ResultStep from '@/components/ui/ResultStep';
+import Button from '@/components/ui/Button';
+import EmployeeCheckboxList from '@/components/ui/EmployeeCheckboxList';
+import type { FilterState } from '@/components/schedule/useScheduleState';
+import { useToggleSet } from '@/lib/hooks/useToggleSet';
 
 interface EmployeePreview {
-  code: string
-  firstName: string
-  lastName: string
-  deptName: string
+  code: string;
+  firstName: string;
+  lastName: string;
+  deptName: string;
 }
 
 interface RefreshPreviewData {
-  toAdd: EmployeePreview[]
-  toRemove: EmployeePreview[]
+  toAdd: EmployeePreview[];
+  toRemove: EmployeePreview[];
 }
 
 interface RefreshEmployeesModalProps {
-  open: boolean
-  onClose: () => void
-  filters: FilterState
-  onComplete: () => void
+  open: boolean;
+  onClose: () => void;
+  filters: FilterState;
+  onComplete: () => void;
 }
 
-export default function RefreshEmployeesModal({ open, onClose, filters, onComplete }: RefreshEmployeesModalProps) {
-  const [step, setStep] = useState(1)
-  const [preview, setPreview] = useState<RefreshPreviewData | null>(null)
-  const [selectedToAdd, setSelectedToAdd] = useState<Set<string>>(new Set())
-  const [selectedToRemove, setSelectedToRemove] = useState<Set<string>>(new Set())
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [result, setResult] = useState('')
+export default function RefreshEmployeesModal({
+  open,
+  onClose,
+  filters,
+  onComplete,
+}: RefreshEmployeesModalProps) {
+  const { step, next, goTo, reset } = useWizard(3);
+  const [preview, setPreview] = useState<RefreshPreviewData | null>(null);
+  const {
+    set: selectedToAdd,
+    toggle: toggleAdd,
+    toggleAll: toggleAllAdd,
+    clear: clearToAdd,
+    reset: resetToAdd,
+  } = useToggleSet<string>();
+  const {
+    set: selectedToRemove,
+    toggle: toggleRemove,
+    toggleAll: toggleAllRemove,
+    clear: clearToRemove,
+    reset: resetToRemove,
+  } = useToggleSet<string>();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
-      setStep(1)
-      setPreview(null)
-      setSelectedToAdd(new Set())
-      setSelectedToRemove(new Set())
-      setError('')
-      setResult('')
-      fetchPreview()
+      reset();
+      setPreview(null);
+      clearToAdd();
+      clearToRemove();
+      setError(null);
+      setResult(null);
+      fetchPreview();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+  }, [open]);
 
   const fetchPreview = async () => {
-    if (!filters.hotelInfo) return
-    setLoading(true)
-    setError('')
+    if (!filters.hotelInfo) return;
+    setLoading(true);
     try {
       const res = await fetch('/api/employees/refresh-preview', {
         method: 'POST',
@@ -59,47 +81,30 @@ export default function RefreshEmployeesModal({ open, onClose, filters, onComple
           branchId: filters.hotelInfo.branchId,
           tenant: filters.tenant,
         }),
-      })
+      });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body.error ?? 'Failed to fetch preview')
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? 'Failed to fetch preview');
       }
-      const json: RefreshPreviewData = await res.json()
-      setPreview(json)
-      setSelectedToAdd(new Set(json.toAdd.map((e) => e.code)))
-      setSelectedToRemove(new Set(json.toRemove.map((e) => e.code)))
-      setStep(2)
+      const json: RefreshPreviewData = await res.json();
+      setPreview(json);
+      resetToAdd(json.toAdd.map((e) => e.code));
+      resetToRemove(json.toRemove.map((e) => e.code));
+      next();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch preview')
-      setStep(2)
+      toast.error(err instanceof Error ? err.message : 'Failed to fetch preview');
+      next();
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
-
-  const toggleAdd = (code: string) => {
-    setSelectedToAdd((prev) => {
-      const next = new Set(prev)
-      if (next.has(code)) next.delete(code)
-      else next.add(code)
-      return next
-    })
-  }
-
-  const toggleRemove = (code: string) => {
-    setSelectedToRemove((prev) => {
-      const next = new Set(prev)
-      if (next.has(code)) next.delete(code)
-      else next.add(code)
-      return next
-    })
-  }
+  };
 
   const handleExecute = async () => {
-    if (!filters.hotelInfo) return
-    setStep(3)
-    setLoading(true)
-    setError('')
+    if (!filters.hotelInfo) return;
+    goTo(3);
+    setLoading(true);
+    setError(null);
+    setResult(null);
     try {
       const res = await fetch('/api/employees/refresh', {
         method: 'POST',
@@ -112,151 +117,104 @@ export default function RefreshEmployeesModal({ open, onClose, filters, onComple
           addCodes: [...selectedToAdd],
           removeCodes: [...selectedToRemove],
         }),
-      })
+      });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body.error ?? 'Refresh failed')
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? 'Refresh failed');
       }
-      const json = await res.json()
-      setResult(json.message ?? 'Employee list refreshed successfully.')
-      setStep(4)
+      const json = await res.json();
+      setResult(json.message ?? 'Employee list refreshed successfully.');
+      onComplete();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Refresh failed')
-      setStep(4)
+      setError(err instanceof Error ? err.message : 'Refresh failed');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
-
-  const handleClose = () => {
-    if (step === 4 && result) onComplete()
-    onClose()
-  }
+  };
 
   const renderStep = () => {
     switch (step) {
       case 1:
-        return (
-          <div className="flex flex-col items-center py-8 gap-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p className="text-sm text-gray-600">Loading employee changes...</p>
-          </div>
-        )
+        return <ResultStep loading loadingText="Loading employee changes..." />;
       case 2:
         if (!preview) {
-          return error ? null : (
-            <p className="text-sm text-gray-500">No preview data available.</p>
-          )
+          return <p className="text-sm text-gray-500">No preview data available.</p>;
         }
         return (
           <div className="space-y-4">
             {preview.toAdd.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium text-green-700 mb-2">
-                  New Employees to Add ({selectedToAdd.size}/{preview.toAdd.length})
-                </h3>
-                <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
-                  {preview.toAdd.map((emp) => (
-                    <label key={emp.code} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedToAdd.has(emp.code)}
-                        onChange={() => toggleAdd(emp.code)}
-                        className="mr-3"
-                      />
-                      <span className="text-sm text-gray-800">
-                        {emp.firstName} {emp.lastName}
-                      </span>
-                      <span className="ml-auto text-xs text-gray-500">{emp.deptName}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+              <EmployeeCheckboxList
+                employees={preview.toAdd}
+                selected={selectedToAdd}
+                onToggle={toggleAdd}
+                onToggleAll={toggleAllAdd}
+                label="New Employees to Add"
+                labelClassName="text-sm font-medium text-green-700"
+                maxHeight="max-h-40"
+              />
             )}
 
             {preview.toRemove.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium text-red-700 mb-2">
-                  Employees to Remove ({selectedToRemove.size}/{preview.toRemove.length})
-                </h3>
-                <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
-                  {preview.toRemove.map((emp) => (
-                    <label key={emp.code} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedToRemove.has(emp.code)}
-                        onChange={() => toggleRemove(emp.code)}
-                        className="mr-3"
-                      />
-                      <span className="text-sm text-gray-800">
-                        {emp.firstName} {emp.lastName}
-                      </span>
-                      <span className="ml-auto text-xs text-gray-500">{emp.deptName}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+              <EmployeeCheckboxList
+                employees={preview.toRemove}
+                selected={selectedToRemove}
+                onToggle={toggleRemove}
+                onToggleAll={toggleAllRemove}
+                label="Employees to Remove"
+                labelClassName="text-sm font-medium text-red-700"
+                maxHeight="max-h-40"
+              />
             )}
 
             {preview.toAdd.length === 0 && preview.toRemove.length === 0 && (
-              <div className="p-3 bg-green-50 text-green-700 rounded-lg text-sm">
+              <Alert variant="success">
                 Employee list is already up to date. No changes needed.
-              </div>
+              </Alert>
             )}
           </div>
-        )
+        );
       case 3:
         return (
-          <div className="flex flex-col items-center py-8 gap-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p className="text-sm text-gray-600">Refreshing employee list...</p>
-          </div>
-        )
-      case 4:
-        return (
-          <div className="space-y-4">
-            {error && <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>}
-            {result && <div className="p-3 bg-green-50 text-green-700 rounded-lg text-sm">{result}</div>}
-          </div>
-        )
+          <ResultStep
+            loading={loading}
+            loadingText="Refreshing employee list..."
+            error={error}
+            result={result}
+            onClose={onClose}
+          />
+        );
       default:
-        return null
+        return null;
     }
-  }
+  };
 
   const renderFooter = () => {
-    if (step === 1 || step === 3) return null
-    if (step === 4) {
-      return (
-        <button onClick={handleClose} className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium">
-          Close
-        </button>
-      )
-    }
-    // Step 2
-    const hasChanges = selectedToAdd.size > 0 || selectedToRemove.size > 0
+    if (step === 1 || step === 3) return null;
+    const hasChanges = selectedToAdd.size > 0 || selectedToRemove.size > 0;
     return (
       <>
-        <button onClick={handleClose} className="bg-gray-100 text-gray-700 hover:bg-gray-200 px-4 py-2 rounded-lg text-sm font-medium">
+        <Button variant="secondary" onClick={onClose}>
           Cancel
-        </button>
-        <button
-          onClick={handleExecute}
-          disabled={!hasChanges}
-          className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
-        >
+        </Button>
+        <Button variant="primary" onClick={handleExecute} disabled={!hasChanges}>
           Apply Changes
-        </button>
+        </Button>
       </>
-    )
-  }
+    );
+  };
 
   return (
-    <Modal isOpen={open} onClose={handleClose} title="Refresh Employees" size="lg" footer={renderFooter()}>
-      {error && step !== 4 && (
-        <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm mb-4">{error}</div>
-      )}
+    <Wizard
+      open={open}
+      onClose={onClose}
+      title="Refresh Employees"
+      size="lg"
+      step={step}
+      total={3}
+      showStepCount={false}
+      footer={renderFooter()}
+    >
       {renderStep()}
-    </Modal>
-  )
+    </Wizard>
+  );
 }

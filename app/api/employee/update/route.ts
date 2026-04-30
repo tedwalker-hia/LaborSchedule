@@ -1,42 +1,39 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
+import { makeScheduleService } from '@/lib/services/schedule-service';
+import { mapErrorResponse } from '@/lib/http/map-error';
+import { UpdateEmployeeBodySchema } from '@/lib/schemas/employee';
+import { getCurrentUser } from '@/lib/auth/current-user';
+import { getUserPermissions } from '@/lib/auth/rbac';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
+  const user = getCurrentUser(request);
+  if (!user) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+
+  const parsed = UpdateEmployeeBodySchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return NextResponse.json({ issues: parsed.error.issues }, { status: 400 });
+  }
+
+  const perms = await getUserPermissions(user.userId);
+  if (!perms) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  }
+  const scope = await perms.deriveScheduleScope(parsed.data.usrSystemCompanyId);
+  if (scope !== null && scope.length === 0) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  }
+
   try {
-    const userId = request.headers.get('x-user-id')
-    if (!userId) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-    }
-
-    const {
-      usrSystemCompanyId,
-      employeeCode,
-      oldDeptName,
-      oldPositionName,
-      newDeptName,
-      newPositionName,
-    } = await request.json()
-
-    if (!usrSystemCompanyId || !employeeCode) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
-    }
-
-    const result = await prisma.laborSchedule.updateMany({
-      where: {
-        usrSystemCompanyId,
-        employeeCode,
-        deptName: oldDeptName || null,
-        positionName: oldPositionName || null,
-      },
-      data: {
-        deptName: newDeptName || null,
-        positionName: newPositionName || null,
-      },
-    })
-
-    return NextResponse.json({ updated: result.count })
+    const svc = makeScheduleService();
+    const result = await svc.updateEmployeePlacement({ ...parsed.data, scope });
+    return NextResponse.json(result);
   } catch (error) {
-    console.error('Employee update error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return mapErrorResponse(error, 'Employee update error');
   }
 }

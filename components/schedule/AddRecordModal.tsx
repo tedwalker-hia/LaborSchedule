@@ -1,98 +1,88 @@
-'use client'
+'use client';
 
-import { useState, useEffect, useCallback } from 'react'
-import Modal from '@/components/ui/Modal'
-import { FilterState } from '@/components/schedule/useScheduleState'
-import { TIME_OPTIONS, calcHours } from '@/lib/schedule-utils'
-
-interface Employee {
-  code: string
-  firstName: string
-  lastName: string
-  deptName: string
-  positionName: string
-}
+import { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
+import Modal from '@/components/ui/Modal';
+import Button from '@/components/ui/Button';
+import Spinner from '@/components/ui/Spinner';
+import TextField from '@/components/ui/TextField';
+import SelectField from '@/components/ui/SelectField';
+import DateField from '@/components/ui/DateField';
+import type { FilterState } from '@/components/schedule/useScheduleState';
+import { TIME_OPTIONS } from '@/lib/schedule-utils';
+import { calcHours } from '@/lib/domain/rules';
+import { useEmployees } from '@/lib/hooks/useEmployees';
 
 interface AddRecordModalProps {
-  open: boolean
-  onClose: () => void
-  filters: FilterState
-  onComplete: () => void
+  open: boolean;
+  onClose: () => void;
+  filters: FilterState;
+  onComplete: () => void;
 }
 
-export default function AddRecordModal({ open, onClose, filters, onComplete }: AddRecordModalProps) {
-  const [employees, setEmployees] = useState<Employee[]>([])
-  const [selectedEmployee, setSelectedEmployee] = useState('')
-  const [department, setDepartment] = useState('')
-  const [position, setPosition] = useState('')
-  const [date, setDate] = useState('')
-  const [clockIn, setClockIn] = useState('')
-  const [clockOut, setClockOut] = useState('')
-  const [hours, setHours] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [fetchingEmployees, setFetchingEmployees] = useState(false)
-  const [error, setError] = useState('')
-  const [result, setResult] = useState('')
+export default function AddRecordModal({
+  open,
+  onClose,
+  filters,
+  onComplete,
+}: AddRecordModalProps) {
+  const {
+    employees,
+    loading: fetchingEmployees,
+    error: employeeError,
+    refetch,
+  } = useEmployees(filters);
+  const [selectedEmployee, setSelectedEmployee] = useState('');
+  const [department, setDepartment] = useState('');
+  const [position, setPosition] = useState('');
+  const [date, setDate] = useState('');
+  const [clockIn, setClockIn] = useState('');
+  const [clockOut, setClockOut] = useState('');
+  const [hours, setHours] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setSelectedEmployee('')
-      setDepartment(filters.department)
-      setPosition(filters.position)
-      setDate(filters.startDate)
-      setClockIn('')
-      setClockOut('')
-      setHours('')
-      setError('')
-      setResult('')
-      fetchEmployees()
+      setSelectedEmployee('');
+      setDepartment(filters.department);
+      setPosition(filters.position);
+      setDate(filters.startDate);
+      setClockIn('');
+      setClockOut('');
+      setHours('');
+      refetch();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+  }, [open]);
 
-  const fetchEmployees = useCallback(async () => {
-    if (!filters.hotelInfo) return
-    setFetchingEmployees(true)
-    try {
-      const params = new URLSearchParams({
-        hotel: filters.hotel,
-        usrSystemCompanyId: filters.hotelInfo.usrSystemCompanyId,
-      })
-      const res = await fetch(`/api/employees?${params.toString()}`)
-      if (!res.ok) throw new Error('Failed to fetch employees')
-      const json = await res.json()
-      setEmployees(json.employees ?? json)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch employees')
-    } finally {
-      setFetchingEmployees(false)
-    }
-  }, [filters.hotel, filters.hotelInfo])
+  useEffect(() => {
+    if (employeeError) toast.error(employeeError);
+  }, [employeeError]);
 
   const handleEmployeeChange = (code: string) => {
-    setSelectedEmployee(code)
-    const emp = employees.find((e) => e.code === code)
+    setSelectedEmployee(code);
+    const emp = employees.find((e) => e.code === code);
     if (emp) {
-      setDepartment(emp.deptName)
-      setPosition(emp.positionName)
+      if (emp.deptName) setDepartment(emp.deptName);
+      if (emp.positionName) setPosition(emp.positionName);
     }
-  }
+  };
 
   // Auto-calculate hours when clock times change
   useEffect(() => {
     if (clockIn && clockOut) {
-      const computed = calcHours(clockIn, clockOut)
+      const computed = calcHours(clockIn, clockOut);
       if (computed !== null) {
-        setHours(String(computed))
+        setHours(String(computed));
       }
     }
-  }, [clockIn, clockOut])
+  }, [clockIn, clockOut]);
 
   const handleSubmit = async () => {
-    if (!filters.hotelInfo) return
-    setLoading(true)
-    setError('')
+    if (!filters.hotelInfo) return;
+    setLoading(true);
     try {
+      const emp = employees.find((e) => e.code === selectedEmployee);
       const res = await fetch('/api/schedule/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -102,155 +92,101 @@ export default function AddRecordModal({ open, onClose, filters, onComplete }: A
           branchId: filters.hotelInfo.branchId,
           tenant: filters.tenant,
           employeeCode: selectedEmployee,
-          department,
-          position,
+          firstName: emp?.firstName ?? null,
+          lastName: emp?.lastName ?? null,
+          deptName: department || null,
+          positionName: position || null,
           date,
           clockIn,
           clockOut,
-          hours: hours ? parseFloat(hours) : undefined,
         }),
-      })
+      });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body.error ?? 'Failed to add record')
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? 'Failed to add record');
       }
-      const json = await res.json()
-      setResult(json.message ?? 'Record added successfully.')
+      const json = await res.json();
+      toast.success(json.message ?? 'Record added successfully.');
+      onComplete();
+      onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add record')
+      toast.error(err instanceof Error ? err.message : 'Failed to add record');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  const handleClose = () => {
-    if (result) onComplete()
-    onClose()
-  }
+  const canSubmit = selectedEmployee && date && clockIn && clockOut && !loading;
 
-  const canSubmit = selectedEmployee && date && clockIn && clockOut && !loading
-
-  const footer = result ? (
-    <button onClick={handleClose} className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium">
-      Close
-    </button>
-  ) : (
+  const footer = (
     <>
-      <button onClick={handleClose} className="bg-gray-100 text-gray-700 hover:bg-gray-200 px-4 py-2 rounded-lg text-sm font-medium">
+      <Button variant="secondary" onClick={onClose}>
         Cancel
-      </button>
-      <button
-        onClick={handleSubmit}
-        disabled={!canSubmit}
-        className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
-      >
+      </Button>
+      <Button variant="primary" onClick={handleSubmit} disabled={!canSubmit}>
         {loading ? 'Adding...' : 'Add Record'}
-      </button>
+      </Button>
     </>
-  )
+  );
 
   return (
-    <Modal isOpen={open} onClose={handleClose} title="Add Schedule Record" size="md" footer={footer}>
-      {error && <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm mb-4">{error}</div>}
-      {result ? (
-        <div className="p-3 bg-green-50 text-green-700 rounded-lg text-sm">{result}</div>
-      ) : (
-        <div className="space-y-4">
+    <Modal isOpen={open} onClose={onClose} title="Add Schedule Record" size="md" footer={footer}>
+      <div className="space-y-4">
+        {fetchingEmployees ? (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Employee</label>
-            {fetchingEmployees ? (
-              <div className="flex justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              </div>
-            ) : (
-              <select
-                value={selectedEmployee}
-                onChange={(e) => handleEmployeeChange(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-              >
-                <option value="">Select employee...</option>
-                {employees.map((emp) => (
-                  <option key={emp.code} value={emp.code}>
-                    {emp.firstName} {emp.lastName} ({emp.code})
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
-              <input
-                type="text"
-                value={department}
-                onChange={(e) => setDepartment(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Position</label>
-              <input
-                type="text"
-                value={position}
-                onChange={(e) => setPosition(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-              />
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Employee
+            </label>
+            <div className="flex justify-center py-8">
+              <Spinner />
             </div>
           </div>
+        ) : (
+          <SelectField label="Employee" value={selectedEmployee} onChange={handleEmployeeChange}>
+            <option value="">Select employee...</option>
+            {employees.map((emp) => (
+              <option key={emp.code} value={emp.code}>
+                {emp.firstName} {emp.lastName} ({emp.code})
+              </option>
+            ))}
+          </SelectField>
+        )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Clock In</label>
-              <select
-                value={clockIn}
-                onChange={(e) => setClockIn(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-              >
-                <option value="">Select time...</option>
-                {TIME_OPTIONS.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Clock Out</label>
-              <select
-                value={clockOut}
-                onChange={(e) => setClockOut(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-              >
-                <option value="">Select time...</option>
-                {TIME_OPTIONS.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Hours</label>
-            <input
-              type="number"
-              step="0.25"
-              value={hours}
-              onChange={(e) => setHours(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-              placeholder="Auto-calculated from clock times"
-            />
-          </div>
+        <div className="grid grid-cols-2 gap-4">
+          <TextField label="Department" value={department} onChange={setDepartment} />
+          <TextField label="Position" value={position} onChange={setPosition} />
         </div>
-      )}
+
+        <DateField label="Date" value={date} onChange={setDate} />
+
+        <div className="grid grid-cols-2 gap-4">
+          <SelectField label="Clock In" value={clockIn} onChange={setClockIn}>
+            <option value="">Select time...</option>
+            {TIME_OPTIONS.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </SelectField>
+          <SelectField label="Clock Out" value={clockOut} onChange={setClockOut}>
+            <option value="">Select time...</option>
+            {TIME_OPTIONS.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </SelectField>
+        </div>
+
+        <TextField
+          label="Hours"
+          type="number"
+          step="0.25"
+          value={hours}
+          onChange={setHours}
+          placeholder="Auto-calculated from clock times"
+        />
+      </div>
     </Modal>
-  )
+  );
 }

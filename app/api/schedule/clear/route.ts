@@ -1,61 +1,42 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
+import { makeScheduleService } from '@/lib/services/schedule-service';
+import { mapErrorResponse } from '@/lib/http/map-error';
+import { ClearBodySchema } from '@/lib/schemas/schedule';
+import { getCurrentUser } from '@/lib/auth/current-user';
+import { getUserPermissions } from '@/lib/auth/rbac';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
+  const user = getCurrentUser(request);
+  if (!user) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+
+  const parsed = ClearBodySchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return NextResponse.json({ issues: parsed.error.issues }, { status: 400 });
+  }
+
+  const perms = await getUserPermissions(user.userId);
+  if (!perms) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  }
+  const scope = await perms.deriveScheduleScope(parsed.data.usrSystemCompanyId);
+  if (scope !== null && scope.length === 0) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  }
+
   try {
-    const userId = request.headers.get('x-user-id')
-    if (!userId) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-    }
-
-    const { usrSystemCompanyId, employeeCodes, startDate, endDate, clearLocked } = await request.json()
-
-    if (!usrSystemCompanyId || !Array.isArray(employeeCodes) || !startDate || !endDate) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
-    }
-
-    const start = new Date(startDate + 'T00:00:00')
-    const end = new Date(endDate + 'T00:00:00')
-
-    let deleted = 0
-    let lockedSkipped = 0
-
-    if (clearLocked) {
-      // Delete all records in range
-      const result = await prisma.laborSchedule.deleteMany({
-        where: {
-          usrSystemCompanyId,
-          employeeCode: { in: employeeCodes },
-          scheduleDate: { gte: start, lte: end },
-        },
-      })
-      deleted = result.count
-    } else {
-      // Count locked records that will be skipped
-      lockedSkipped = await prisma.laborSchedule.count({
-        where: {
-          usrSystemCompanyId,
-          employeeCode: { in: employeeCodes },
-          scheduleDate: { gte: start, lte: end },
-          locked: true,
-        },
-      })
-
-      // Delete only unlocked records
-      const result = await prisma.laborSchedule.deleteMany({
-        where: {
-          usrSystemCompanyId,
-          employeeCode: { in: employeeCodes },
-          scheduleDate: { gte: start, lte: end },
-          OR: [{ locked: false }, { locked: null }],
-        },
-      })
-      deleted = result.count
-    }
-
-    return NextResponse.json({ deleted, lockedSkipped })
+    const svc = makeScheduleService();
+    const result = await svc.clear(
+      { ...parsed.data, scope },
+      { userId: user.userId, source: 'api' },
+    );
+    return NextResponse.json(result);
   } catch (error) {
-    console.error('Schedule clear error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return mapErrorResponse(error, 'Schedule clear error');
   }
 }

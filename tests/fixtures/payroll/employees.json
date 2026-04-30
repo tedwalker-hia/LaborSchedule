@@ -1,0 +1,58 @@
+[
+  {
+    "usrSystemCompanyId": "TESTCO",
+    "employeeCode": "E001",
+    "firstName": "Alice",
+    "lastName": "Smith",
+    "scheduleDate": "2024-01-01",
+    "hours": 8.0,
+    "deptName": "Front Office",
+    "positionName": "Receptionist",
+    "hotelName": "Test Hotel",
+    "tenant": "TESTTENANT",
+    "clockIn": "09:00",
+    "clockOut": "17:00"
+  },
+  {
+    "usrSystemCompanyId": "TESTCO",
+    "employeeCode": "E001",
+    "firstName": "Alice",
+    "lastName": "Smith",
+    "scheduleDate": "2024-01-08",
+    "hours": 8.0,
+    "deptName": "Front Office",
+    "positionName": "Receptionist",
+    "hotelName": "Test Hotel",
+    "tenant": "TESTTENANT",
+    "clockIn": "09:00",
+    "clockOut": "17:00"
+  },
+  {
+    "usrSystemCompanyId": "TESTCO",
+    "employeeCode": "E002",
+    "firstName": "Bob",
+    "lastName": "Jones",
+    "scheduleDate": "2024-01-02",
+    "hours": 6.0,
+    "deptName": "Housekeeping",
+    "positionName": "Housekeeper",
+    "hotelName": "Test Hotel",
+    "tenant": "TESTTENANT",
+    "clockIn": "08:00",
+    "clockOut": "14:00"
+  },
+  {
+    "usrSystemCompanyId": "TESTCO",
+    "employeeCode": "E002",
+    "firstName": "Bob",
+    "lastName": "Jones",
+    "scheduleDate": "2024-01-09",
+    "hours": 6.0,
+    "deptName": "Housekeeping",
+    "positionName": "Housekeeper",
+    "hotelName": "Test Hotel",
+    "tenant": "TESTTENANT",
+    "clockIn": "08:00",
+    "clockOut": "14:00"
+  }
+]

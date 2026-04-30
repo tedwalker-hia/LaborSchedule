@@ -1,45 +1,49 @@
-'use client'
+'use client';
 
-import { Lock, Unlock, Trash2, Download, Upload, Plus, Save } from 'lucide-react'
+import { Lock, Unlock, Trash2, Download, Upload, Plus, Save } from 'lucide-react';
 
 interface ActionBarProps {
-  hasChanges: boolean
-  selectedCount: number
-  loading: boolean
-  onSave: () => void
-  onDiscard: () => void
-  onSelectAll: () => void
-  onDeselectAll: () => void
-  onOpenGenerate: () => void
-  onOpenClear: () => void
-  onOpenImport: () => void
-  onOpenAdd: () => void
-  onOpenDelete: () => void
-  onOpenRefresh: () => void
-  onOpenSeed: () => void
+  hasChanges: boolean;
+  selectedCount: number;
+  loading: boolean;
+  exporting: boolean;
+  onSave: () => void;
+  onDiscard: () => void;
+  onSelectAll: () => void;
+  onDeselectAll: () => void;
+  onOpenGenerate: () => void;
+  onOpenClear: () => void;
+  onOpenImport: () => void;
+  onExport: () => void;
+  onOpenAdd: () => void;
+  onOpenDelete: () => void;
+  onOpenRefresh: () => void;
+  onOpenSeed: () => void;
 }
 
 const outlineBtn =
-  'px-3 py-2 text-sm font-medium rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1'
+  'px-3 py-2 text-sm font-medium rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1';
 
 const iconBtn =
-  'p-2 rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1'
+  'p-2 rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1';
 
 export default function ActionBar({
   hasChanges,
   selectedCount,
   loading,
+  exporting,
   onSave,
   onDiscard,
   onOpenGenerate,
   onOpenClear,
   onOpenImport,
+  onExport,
   onOpenAdd,
   onOpenDelete,
   onOpenRefresh,
   onOpenSeed,
 }: ActionBarProps) {
-  const hasSelection = selectedCount > 0
+  const hasSelection = selectedCount > 0;
 
   return (
     <div className="bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700">
@@ -97,6 +101,15 @@ export default function ActionBar({
           )}
 
           <button
+            onClick={onExport}
+            disabled={exporting}
+            className={`${iconBtn} border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed`}
+            title="Export to Excel"
+            aria-label="Export to Excel"
+          >
+            <Download className="w-4 h-4" />
+          </button>
+          <button
             onClick={onOpenImport}
             className={`${iconBtn} border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-800`}
             title="Import"
@@ -128,5 +141,5 @@ export default function ActionBar({
         </div>
       </div>
     </div>
-  )
+  );
 }
