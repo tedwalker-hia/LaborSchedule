@@ -11,6 +11,14 @@ frontend:
     build:
       commands:
         - export NODE_ENV=production
+        # Amplify Console env vars reach the build env but are not always
+        # propagated into the SSR Lambda runtime. Persist required vars into
+        # .env.production so Next.js standalone loads them via next/env at boot.
+        - rm -f .env.production
+        - if [ -n "$JWT_SECRET" ]; then printf 'JWT_SECRET=%s\n' "$JWT_SECRET" >> .env.production; echo "wrote JWT_SECRET (len=${#JWT_SECRET})"; else echo "WARN JWT_SECRET missing in build env"; fi
+        - if [ -n "$DATABASE_URL" ]; then printf 'DATABASE_URL=%s\n' "$DATABASE_URL" >> .env.production; echo "wrote DATABASE_URL"; else echo "WARN DATABASE_URL missing in build env"; fi
+        - if [ -n "$AUDIT_ENABLED" ]; then printf 'AUDIT_ENABLED=%s\n' "$AUDIT_ENABLED" >> .env.production; fi
+        - if [ -n "$REDIS_URL" ]; then printf 'REDIS_URL=%s\n' "$REDIS_URL" >> .env.production; fi
         - npm run build
   artifacts:
     baseDirectory: .next
