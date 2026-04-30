@@ -203,7 +203,16 @@ export default function SchedulePage() {
           open={deleteModalOpen}
           onClose={() => setDeleteModalOpen(false)}
           filters={filters}
-          selectedEmployees={selectedEmployeeCodes}
+          selections={
+            data
+              ? data.employees
+                  .filter((e) => selectedEmployees.has(e.rowKey))
+                  .map((e) => ({
+                    employeeCode: e.code,
+                    positionName: e.positionName || null,
+                  }))
+              : []
+          }
           onComplete={loadSchedule}
         />
       )}

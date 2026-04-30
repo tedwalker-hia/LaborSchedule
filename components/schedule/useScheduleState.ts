@@ -89,7 +89,8 @@ export function useScheduleState() {
   // Change tracking — keyed by `${rowKey}|${date}` where rowKey is `${empCode}|${positionName}`.
   const [changes, setChanges] = useState<Record<string, ScheduleChange>>({});
 
-  // Selection — Set of employee codes (selecting a person selects all their position rows).
+  // Selection — Set of rowKeys ("code|positionName"). Each grid row toggles
+  // independently so multi-position employees can be acted on per-position.
   const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(new Set());
 
   // Dropdown options
@@ -322,20 +323,18 @@ export function useScheduleState() {
   }, [changes, filters, loadSchedule]);
 
   // ── Selection ──────────────────────────────────────────────────────────────
-  // Selection is keyed by employee code (NOT rowKey). Bulk actions
-  // (clear/generate/delete) accept `employeeCodes[]` and operate position-agnostically
-  // — so a multi-position employee should appear as one logical selection that
-  // covers all their rows. Toggling any of their rows flips the whole employee.
+  // Selection is keyed by rowKey so multi-position employees can be acted on
+  // per-position. delete uses the per-position selections directly; clear and
+  // generate (which are position-agnostic on the backend) derive the unique
+  // code set from the same rowKey set.
 
   const toggleEmployee = useCallback((rowKey: string) => {
-    const code = rowKey.split('|')[0];
-    if (!code) return;
     setSelectedEmployees((prev) => {
       const next = new Set(prev);
-      if (next.has(code)) {
-        next.delete(code);
+      if (next.has(rowKey)) {
+        next.delete(rowKey);
       } else {
-        next.add(code);
+        next.add(rowKey);
       }
       return next;
     });
@@ -343,15 +342,24 @@ export function useScheduleState() {
 
   const selectAllEmployees = useCallback(() => {
     if (!data) return;
-    setSelectedEmployees(new Set(data.employees.map((e) => e.code)));
+    setSelectedEmployees(new Set(data.employees.map((e) => e.rowKey)));
   }, [data]);
 
   const deselectAllEmployees = useCallback(() => {
     setSelectedEmployees(new Set());
   }, []);
 
-  // Public alias retained for callers that previously expected a Set<empCode>.
-  const selectedEmployeeCodes = selectedEmployees;
+  // Codes derived from rowKey set — used by code-based callers (clear,
+  // generate). De-duped so a multi-position employee with multiple selected
+  // rows still appears once.
+  const selectedEmployeeCodes = useMemo<Set<string>>(() => {
+    const codes = new Set<string>();
+    for (const rowKey of selectedEmployees) {
+      const code = rowKey.split('|')[0];
+      if (code) codes.add(code);
+    }
+    return codes;
+  }, [selectedEmployees]);
 
   // ── Auto-load on filter change ────────────────────────────────────────────
 

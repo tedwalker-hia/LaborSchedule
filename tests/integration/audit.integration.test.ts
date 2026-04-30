@@ -271,7 +271,7 @@ describe('audit: schedule.delete', () => {
     await svc.delete(
       {
         usrSystemCompanyId: COMPANY,
-        employeeCodes: ['EAUD_D1'],
+        selections: [{ employeeCode: 'EAUD_D1' }],
         startDate: '2025-08-01',
         endDate: '2025-08-02',
       },

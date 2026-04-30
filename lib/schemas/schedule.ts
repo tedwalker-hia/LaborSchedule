@@ -54,9 +54,14 @@ export const ClearBodySchema = z.object({
   clearLocked: z.boolean().optional(),
 });
 
+export const DeleteSelectionSchema = z.object({
+  employeeCode: z.string(),
+  positionName: z.string().nullable().optional(),
+});
+
 export const DeleteBodySchema = z.object({
   usrSystemCompanyId: z.string(),
-  employeeCodes: z.array(z.string()),
+  selections: z.array(DeleteSelectionSchema),
   startDate: z.string(),
   endDate: z.string(),
 });

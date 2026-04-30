@@ -5,11 +5,16 @@ import Alert from '@/components/ui/Alert';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import type { FilterState } from '@/components/schedule/useScheduleState';
 
+export interface DeleteSelection {
+  employeeCode: string;
+  positionName: string | null;
+}
+
 interface DeleteModalProps {
   open: boolean;
   onClose: () => void;
   filters: FilterState;
-  selectedEmployees?: Set<string>;
+  selections: DeleteSelection[];
   onComplete: () => void;
 }
 
@@ -17,11 +22,9 @@ export default function DeleteModal({
   open,
   onClose,
   filters,
-  selectedEmployees,
+  selections,
   onComplete,
 }: DeleteModalProps) {
-  const employeeCodes = selectedEmployees ? [...selectedEmployees] : [];
-
   const handleDelete = async () => {
     if (!filters.hotelInfo) return;
     const res = await fetch('/api/schedule/delete', {
@@ -29,7 +32,7 @@ export default function DeleteModal({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         usrSystemCompanyId: filters.hotelInfo.usrSystemCompanyId,
-        employeeCodes,
+        selections,
         startDate: filters.startDate,
         endDate: filters.endDate,
       }),
@@ -55,17 +58,20 @@ export default function DeleteModal({
   const body = (
     <div className="space-y-4">
       <p className="text-sm text-gray-700">
-        Are you sure you want to delete schedule records for the following employees?
+        Are you sure you want to delete schedule records for the following selections?
       </p>
 
       <div className="p-3 bg-gray-50 rounded-lg">
-        {employeeCodes.length === 0 ? (
-          <p className="text-sm text-gray-500 italic">No employees selected.</p>
+        {selections.length === 0 ? (
+          <p className="text-sm text-gray-500 italic">No rows selected.</p>
         ) : (
           <ul className="text-sm text-gray-800 space-y-1">
-            {employeeCodes.map((code) => (
-              <li key={code} className="font-mono">
-                {code}
+            {selections.map((s) => (
+              <li key={`${s.employeeCode}|${s.positionName ?? ''}`} className="font-mono">
+                {s.employeeCode}
+                {s.positionName ? (
+                  <span className="text-gray-500"> · {s.positionName}</span>
+                ) : null}
               </li>
             ))}
           </ul>

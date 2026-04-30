@@ -447,7 +447,7 @@ function ScheduleGrid({
               emp={emp}
               dates={data.dates}
               today={today}
-              selected={selectedEmployees.has(emp.code)}
+              selected={selectedEmployees.has(emp.rowKey)}
               changes={changes}
               schedule={data.schedule[emp.rowKey] ?? {}}
               allDepts={data.allDepts}

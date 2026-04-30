@@ -535,7 +535,7 @@ describe('ScheduleService.delete', () => {
     const result = await svc.delete(
       {
         usrSystemCompanyId: 'CO1',
-        employeeCodes: ['E001', 'E002'],
+        selections: [{ employeeCode: 'E001' }, { employeeCode: 'E002' }],
         startDate: '2024-01-01',
         endDate: '2024-01-31',
       },
@@ -548,6 +548,63 @@ describe('ScheduleService.delete', () => {
       expect.objectContaining({ action: 'schedule.delete', newJson: null }),
       db,
     );
+  });
+
+  it('returns 0 with no DB call when selections is empty', async () => {
+    const result = await svc.delete(
+      {
+        usrSystemCompanyId: 'CO1',
+        selections: [],
+        startDate: '2024-01-01',
+        endDate: '2024-01-31',
+      },
+      CTX,
+    );
+
+    expect(result).toEqual({ deleted: 0 });
+    expect(db.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('per-position selection: filters to (employeeCode, positionName) pair', async () => {
+    db.laborSchedule.findMany.mockResolvedValue([{ id: 30 }]);
+    db.laborSchedule.deleteMany.mockResolvedValue({ count: 1 });
+
+    await svc.delete(
+      {
+        usrSystemCompanyId: 'CO1',
+        selections: [{ employeeCode: 'E001', positionName: 'Agent' }],
+        startDate: '2024-01-01',
+        endDate: '2024-01-07',
+      },
+      CTX,
+    );
+
+    const findManyCall = db.laborSchedule.findMany.mock.calls.at(-1)?.[0];
+    const json = JSON.stringify(findManyCall.where);
+    expect(json).toContain('E001');
+    expect(json).toContain('Agent');
+    expect(json).toContain('"positionName"');
+  });
+
+  it('null positionName: matches any position for that employee', async () => {
+    db.laborSchedule.findMany.mockResolvedValue([]);
+    db.laborSchedule.deleteMany.mockResolvedValue({ count: 0 });
+
+    await svc.delete(
+      {
+        usrSystemCompanyId: 'CO1',
+        selections: [{ employeeCode: 'E001', positionName: null }],
+        startDate: '2024-01-01',
+        endDate: '2024-01-07',
+      },
+      CTX,
+    );
+
+    const findManyCall = db.laborSchedule.findMany.mock.calls.at(-1)?.[0];
+    // OR clause has employeeCode but no positionName key for null entries.
+    const json = JSON.stringify(findManyCall.where);
+    expect(json).toContain('"employeeCode":"E001"');
+    expect(json).not.toMatch(/"positionName":null/);
   });
 });
 

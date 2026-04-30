@@ -327,7 +327,7 @@ describe('ScheduleService.delete', () => {
     const result = await svc.delete(
       {
         usrSystemCompanyId: COMPANY,
-        employeeCodes: ['ESCH40'],
+        selections: [{ employeeCode: 'ESCH40' }],
         startDate: '2025-04-01',
         endDate: '2025-04-02',
       },

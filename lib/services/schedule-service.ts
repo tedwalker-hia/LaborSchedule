@@ -99,9 +99,14 @@ export interface ClearParams {
   scope?: ScheduleScope;
 }
 
+export interface DeleteSelectionInput {
+  employeeCode: string;
+  positionName?: string | null;
+}
+
 export interface DeleteParams {
   usrSystemCompanyId: string;
-  employeeCodes: string[];
+  selections: DeleteSelectionInput[];
   startDate: string;
   endDate: string;
   scope?: ScheduleScope;
@@ -451,11 +456,31 @@ export class ScheduleService {
   async delete(params: DeleteParams, ctx: AuditCtx): Promise<{ deleted: number }> {
     const startDate = new Date(params.startDate + 'T00:00:00Z');
     const endDate = new Date(params.endDate + 'T00:00:00Z');
+
+    if (params.selections.length === 0) {
+      return { deleted: 0 };
+    }
+
+    // Build OR over (employeeCode, positionName?) pairs so multi-position
+    // employees can be deleted per-position. positionName=null/missing means
+    // "any position" for that employee.
+    const selectionOr: Prisma.LaborScheduleWhereInput[] = params.selections.map((s) => ({
+      employeeCode: s.employeeCode,
+      ...(s.positionName !== undefined && s.positionName !== null
+        ? { positionName: s.positionName }
+        : {}),
+    }));
+
+    // AND-combine to avoid OR-key collision with scopeToWhere's OR.
     const where: Prisma.LaborScheduleWhereInput = {
-      usrSystemCompanyId: params.usrSystemCompanyId,
-      employeeCode: { in: params.employeeCodes },
-      scheduleDate: { gte: startDate, lte: endDate },
-      ...scopeToWhere(params.scope),
+      AND: [
+        {
+          usrSystemCompanyId: params.usrSystemCompanyId,
+          scheduleDate: { gte: startDate, lte: endDate },
+        },
+        scopeToWhere(params.scope),
+        { OR: selectionOr },
+      ],
     };
 
     let deleted = 0;
